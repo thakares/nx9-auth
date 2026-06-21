@@ -1,6 +1,6 @@
 # nx9-auth
 
-A lightweight Identity and Access Management (IAM) service for the NX9 ecosystem.
+A lightweight Identity and Access Management (IAM) service.
 
 Built with Rust, Axum, SQLite, and modern security practices, `nx9-auth` provides authentication, authorization, session management, personal access tokens, audit logging, and role-based access control in a single deployable binary.
 

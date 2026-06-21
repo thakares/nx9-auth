@@ -1,39 +1,37 @@
-/target
-*.db
-*.db-wal
-*.db-shm
-.env
-config.toml
-```gitignore
 # Rust
 /target
 
-# SQLite
+# Build artifacts
+/dist
+
+# SQLite databases
 *.db
 *.db-wal
 *.db-shm
+
+# Configuration
+config.toml
+.env
 
 # Coverage
 coverage/
 tarpaulin-report.html
 
 # IDE
-.vscode/
 .idea/
+.vscode/
+*.iml
 
-# OS
+# Operating System
 .DS_Store
 Thumbs.db
 
-# Local configs
-config.toml
-.env
+# Logs
+*.log
 
-# Temporary backups
+# Local work directories
 backups/
 scratch/
 
-# Logs
-*.log
-```
-.idea/
+# Benchmark output
+benchmarks/

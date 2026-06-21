@@ -1,0 +1,47 @@
+[Unit]
+Description=nx9-auth Identity and Access Management Service
+Documentation=https://github.com/nx9/nx9-auth
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=nx9-auth
+Group=nx9-auth
+ExecStart=/usr/local/bin/nx9-auth serve --config /etc/nx9-auth/config.toml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=10s
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+PrivateDevices=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+# Writable paths (everything else is read-only via ProtectSystem=strict)
+ReadWritePaths=/var/lib/nx9-auth /var/log/nx9-auth
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nx9-auth
+
+[Install]
+WantedBy=multi-user.target

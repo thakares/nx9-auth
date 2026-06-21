@@ -1,0 +1,39 @@
+/target
+*.db
+*.db-wal
+*.db-shm
+.env
+config.toml
+```gitignore
+# Rust
+/target
+
+# SQLite
+*.db
+*.db-wal
+*.db-shm
+
+# Coverage
+coverage/
+tarpaulin-report.html
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local configs
+config.toml
+.env
+
+# Temporary backups
+backups/
+scratch/
+
+# Logs
+*.log
+```
+.idea/

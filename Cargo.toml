@@ -1,0 +1,82 @@
+[package]
+name = "nx9-auth"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["NX9 Team","Sunil Thakare"]
+description = "Lightweight self-hosted IAM service for the NX9 ecosystem"
+license = "Apache-2.0 or MIT -- Dual License"
+
+[[bin]]
+name = "nx9-auth"
+path = "src/main.rs"
+
+[lib]
+name = "nx9_auth"
+path = "src/lib.rs"
+
+[dependencies]
+# HTTP framework
+axum = { version = "0.8.9", features = ["macros"] }
+axum-extra = { version = "0.12", features = ["cookie"] }
+tower = { version = "0.5", features = ["full"] }
+tower-http = { version = "0.6.11", features = ["trace", "request-id", "compression-gzip", "cors", "set-header"] }
+
+# Async runtime
+tokio = { version = "1.52.3", features = ["full"] }
+
+# Database
+sqlx = { version = "0.9.0", features = ["runtime-tokio", "sqlite", "chrono", "macros"] }
+
+# Password hashing
+argon2 = "0.5.3"
+
+# Token/session hashing
+blake3 = "1.8.5"
+
+# CLI
+clap = { version = "4.6.1", features = ["derive", "color", "env"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.23.3", features = ["v4"] }
+time = { version = "0.3", features = ["macros"] }
+
+# Config
+toml = "0.8"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+
+# Random
+rand = { version = "0.8", features = ["std", "std_rng"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Rate limiter
+dashmap = "6.0"
+
+# Utilities
+hex = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[dev-dependencies]
+http-body-util = "0.1"
+

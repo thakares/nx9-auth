@@ -1,0 +1,96 @@
+use axum::{
+    extract::{FromRef, FromRequestParts},
+    http::request::Parts,
+};
+use axum_extra::extract::CookieJar;
+
+use crate::{
+    db::models::User,
+    db::repository::users as user_repo,
+    error::AppError,
+    security::{sessions, tokens},
+    state::AppState,
+};
+
+/// Describes how the current request was authenticated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AuthMethod {
+    Session,
+    Token,
+}
+
+/// Axum extractor that resolves the authenticated user from either a session
+/// cookie or a Bearer token in the Authorization header.
+///
+/// Handlers that need an authenticated user simply include `auth: AuthUser`
+/// in their parameter list.
+#[derive(Debug, Clone)]
+pub struct AuthUser {
+    pub user: User,
+    pub method: AuthMethod,
+    /// Session ID — populated when `method == Session`, used for logout.
+    pub session_id: Option<String>,
+}
+
+impl<S> FromRequestParts<S> for AuthUser
+where
+    AppState: FromRef<S>,
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, AppError> {
+        let app_state = AppState::from_ref(state);
+
+        // 1. Try session cookie first
+        let jar = CookieJar::from_headers(&parts.headers);
+        if let Some(cookie) = jar.get(sessions::SESSION_COOKIE) {
+            let raw = cookie.value();
+            if let Some(session) =
+                sessions::validate_session(&app_state.pool, raw, &app_state.config.security).await?
+            {
+                let user = user_repo::find_by_id(&app_state.pool, &session.user_id)
+                    .await
+                    .map_err(AppError::Database)?
+                    .ok_or(AppError::Unauthorized)?;
+
+                if !user.is_active() {
+                    return Err(AppError::Unauthorized);
+                }
+
+                return Ok(AuthUser {
+                    user,
+                    method: AuthMethod::Session,
+                    session_id: Some(session.id),
+                });
+            }
+        }
+
+        // 2. Try Bearer token in Authorization header
+        if let Some(auth_header) = parts.headers.get(axum::http::header::AUTHORIZATION) {
+            if let Ok(value) = auth_header.to_str() {
+                if let Some(raw) = value.strip_prefix("Bearer ") {
+                    if let Some(token) = tokens::validate_token(&app_state.pool, raw.trim()).await?
+                    {
+                        let user = user_repo::find_by_id(&app_state.pool, &token.user_id)
+                            .await
+                            .map_err(AppError::Database)?
+                            .ok_or(AppError::Unauthorized)?;
+
+                        if !user.is_active() {
+                            return Err(AppError::Unauthorized);
+                        }
+
+                        return Ok(AuthUser {
+                            user,
+                            method: AuthMethod::Token,
+                            session_id: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        Err(AppError::Unauthorized)
+    }
+}

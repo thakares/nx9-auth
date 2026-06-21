@@ -1,0 +1,57 @@
+name: nx9-auth
+services:
+  nx9-auth:
+    image: nx9-auth:0.1.0
+    container_name: nx9-auth
+    restart: unless-stopped
+    ports:
+      - "8655:8655"
+    volumes:
+      - /DATA/AppData/nx9-auth/config:/etc/nx9-auth
+      - /DATA/AppData/nx9-auth/db:/var/lib/nx9-auth
+      - /DATA/AppData/nx9-auth/state:/var/log/nx9-auth
+      - /DATA/AppData/nx9-auth/backups:/var/backups/nx9-auth
+    environment:
+      - NX9_AUTH_CONFIG=/etc/nx9-auth/config.toml
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8655/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    x-casaos:
+      envs:
+        - name: NX9_AUTH_CONFIG
+          description: "Path to configuration file inside container"
+          value: "/etc/nx9-auth/config.toml"
+      ports:
+        - container: "8655"
+          description: "Internal port for the IAM service API"
+      volumes:
+        - container: "/etc/nx9-auth"
+          description: "Directory containing config.toml"
+        - container: "/var/lib/nx9-auth"
+          description: "Directory containing auth.db"
+        - container: "/var/log/nx9-auth"
+          description: "Directory containing log and session state files"
+        - container: "/var/backups/nx9-auth"
+          description: "Directory containing database backups"
+
+x-casaos:
+  architectures:
+    - amd64
+    - arm64
+  main: nx9-auth
+  title:
+    en_us: NX9 Auth
+  icon: https://raw.githubusercontent.com/sunil-thakare/nx9-auth/main/icon.png
+  port_map: "8655"
+  scheme: http
+  index: /health
+  category: Utility
+  developer: NX9 Team
+  description:
+    en_us: Lightweight self-hosted Identity & Access Management (IAM) service for the NX9 ecosystem, featuring SQLite WAL databases, RBAC authorization, sessions, and PAT tokens.
+  tips:
+    before_install:
+      en_us: "After installing, please initialize the database and administrator account by running: docker exec -it nx9-auth nx9-auth init"

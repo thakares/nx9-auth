@@ -1,0 +1,40 @@
+# nx9-auth Configuration Reference
+# Copy this file to /etc/nx9-auth/config.toml and adjust for your environment.
+
+[server]
+# Interface to bind on. Use 127.0.0.1 if running behind a reverse proxy.
+host = "0.0.0.0"
+
+# Port the service listens on.
+port = 8655
+
+[database]
+# Absolute path to the SQLite database file.
+# The directory must be writable by the nx9-auth user.
+path = "/var/lib/nx9-auth/auth.db"
+
+[security]
+# Session idle timeout in hours. Sessions unused for longer than this are expired.
+session_ttl_hours = 24
+
+# Session absolute lifetime in days. Sessions older than this are always expired,
+# regardless of activity.
+session_absolute_ttl_days = 30
+
+# Default API token lifetime in days (365 = 1 year).
+token_ttl_days = 365
+
+# Argon2id memory cost in KiB. Higher = more secure but slower.
+# Minimum recommended: 65536 (64 MiB)
+argon2_memory = 65536
+
+# Argon2id iteration count. Higher = more secure but slower.
+argon2_iterations = 3
+
+# Argon2id parallelism (number of threads).
+argon2_parallelism = 1
+
+[audit]
+# Enable structured audit logging to the database.
+# Disable only in development environments.
+enabled = true

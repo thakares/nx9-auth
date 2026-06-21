@@ -1,0 +1,26 @@
+services:
+  nx9-auth:
+    build: .
+    container_name: nx9-auth
+    restart: unless-stopped
+    ports:
+      - "8655:8655"
+    volumes:
+      - nx9-auth-config:/etc/nx9-auth
+      - nx9-auth-db:/var/lib/nx9-auth
+      - nx9-auth-state:/var/log/nx9-auth
+      - nx9-auth-backups:/var/backups/nx9-auth
+    environment:
+      - NX9_AUTH_CONFIG=/etc/nx9-auth/config.toml
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8655/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  nx9-auth-config:
+  nx9-auth-db:
+  nx9-auth-state:
+  nx9-auth-backups:

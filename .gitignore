@@ -1,37 +1,47 @@
 # Rust
-/target
+/target/
 
-# Build artifacts
-/dist
+# UI build output
+/ui/dist/
 
-# SQLite databases
-*.db
-*.db-wal
-*.db-shm
+# Release artifacts
+/dist/
 
-# Configuration
+# Runtime database
+auth.db
+auth.db-shm
+auth.db-wal
+
+# Local configuration
 config.toml
-.env
 
-# Coverage
-coverage/
-tarpaulin-report.html
+# Scratch
+scratch/
 
-# IDE
-.idea/
-.vscode/
-*.iml
-
-# Operating System
-.DS_Store
-Thumbs.db
+# Temporary
+tree.txt
+*.tmp
+*.bak
+*.orig
+*.swp
+*.swo
+*~
 
 # Logs
 *.log
 
-# Local work directories
-backups/
-scratch/
+# Coverage
+*.profraw
+*.profdata
 
-# Benchmark output
-benchmarks/
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Python
+__pycache__/
+
+# Node
+node_modules/

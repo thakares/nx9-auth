@@ -5,7 +5,7 @@ use sqlx::FromRow;
 pub struct Tenant {
     pub id: String,
     pub name: String,
-    pub slug: String,
+    pub slug: Option<String>,
     pub enabled: bool,
     pub created_at: String,
     pub updated_at: String,

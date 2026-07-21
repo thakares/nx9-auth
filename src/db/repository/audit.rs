@@ -1,10 +1,14 @@
-use sqlx::SqlitePool;
+pub use crate::db::repository::sqlite::audit::*;
 
 use crate::db::models::AuditLog;
+use crate::db::provider::DatabaseProvider;
+use std::sync::Arc;
+// Removed direct import of AuditFilter to avoid conflict with traits version
 
+/// Insert an audit log entry using the provided DatabaseProvider.
 #[allow(clippy::too_many_arguments)]
 pub async fn insert(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    provider: &Arc<dyn DatabaseProvider>,
     id: &str,
     actor_user_id: Option<&str>,
     target_user_id: Option<&str>,
@@ -16,34 +20,35 @@ pub async fn insert(
     user_agent: Option<&str>,
     metadata_json: Option<&str>,
 ) -> Result<AuditLog, sqlx::Error> {
-    sqlx::query_as::<_, AuditLog>(
-        r#"
-        INSERT INTO audit_logs (
-            id, actor_user_id, target_user_id,
-            action, resource_type, resource_id,
-            severity, ip_address, user_agent, metadata_json
+    provider
+        .audit()
+        .insert(
+            id,
+            actor_user_id,
+            target_user_id,
+            action,
+            resource_type,
+            resource_id,
+            severity,
+            ip_address,
+            user_agent,
+            metadata_json,
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING *
-        "#,
-    )
-    .bind(id)
-    .bind(actor_user_id)
-    .bind(target_user_id)
-    .bind(action)
-    .bind(resource_type)
-    .bind(resource_id)
-    .bind(severity)
-    .bind(ip_address)
-    .bind(user_agent)
-    .bind(metadata_json)
-    .fetch_one(&mut **tx)
-    .await
+        .await
 }
 
-pub async fn list_recent(pool: &SqlitePool, limit: i64) -> Result<Vec<AuditLog>, sqlx::Error> {
-    sqlx::query_as::<_, AuditLog>("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT ?")
-        .bind(limit)
-        .fetch_all(pool)
-        .await
+/// Count filtered audit logs using the provided DatabaseProvider.
+pub async fn count_filtered(
+    provider: &Arc<dyn DatabaseProvider>,
+    filter: &AuditFilter,
+) -> Result<i64, sqlx::Error> {
+    provider.audit().count_filtered(filter).await
+}
+
+/// List filtered audit logs using the provided DatabaseProvider.
+pub async fn list_filtered(
+    provider: &Arc<dyn DatabaseProvider>,
+    filter: &AuditFilter,
+) -> Result<Vec<AuditLog>, sqlx::Error> {
+    provider.audit().list_filtered(filter).await
 }

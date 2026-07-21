@@ -16,8 +16,13 @@ pub enum AppError {
     #[error("resource not found")]
     NotFound,
 
-    #[error("invalid credentials")]
+    /// Generic authentication failure (missing/invalid session or token).
+    #[error("unauthorized")]
     Unauthorized,
+
+    /// Login failure — deliberately non-enumerating message.
+    #[error("Invalid username or password.")]
+    InvalidCredentials,
 
     #[error("insufficient permissions")]
     Forbidden,
@@ -41,9 +46,10 @@ impl IntoResponse for AppError {
             AppError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
             AppError::NotFound => (StatusCode::NOT_FOUND, "not_found"),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized"),
+            AppError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "invalid_credentials"),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "forbidden"),
             AppError::Conflict(_) => (StatusCode::CONFLICT, "conflict"),
-            AppError::InvalidInput(_) => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_input"),
+            AppError::InvalidInput(_) => (StatusCode::BAD_REQUEST, "invalid_input"),
             AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "rate_limited"),
             AppError::Internal => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
         };
@@ -85,6 +91,10 @@ mod tests {
         let resp = err_unauthorized.into_response();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
+        let err_creds = AppError::InvalidCredentials;
+        let resp = err_creds.into_response();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
         let err_forbidden = AppError::Forbidden;
         let resp = err_forbidden.into_response();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
@@ -95,7 +105,7 @@ mod tests {
 
         let err_invalid = AppError::InvalidInput("bad value".into());
         let resp = err_invalid.into_response();
-        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
 
         let err_rate = AppError::RateLimited;
         let resp = err_rate.into_response();

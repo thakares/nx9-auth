@@ -3,6 +3,7 @@ use sqlx::FromRow;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ServiceAccount {
+    pub slug: Option<String>,
     pub id: String,
     pub tenant_id: String,
     pub name: String,

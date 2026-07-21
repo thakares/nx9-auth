@@ -8,6 +8,17 @@ host = "0.0.0.0"
 # Port the service listens on.
 port = 8655
 
+# Session cookie Secure flag.
+# false = works over plain HTTP (typical self-hosted / LAN).
+# true  = required when the UI is served over HTTPS (or a TLS reverse proxy).
+# If Secure=true on plain HTTP, browsers drop the cookie and login/password
+# reset will appear broken (subsequent API calls return 401).
+cookie_secure = false
+
+# Production mode: refuses cookie_secure=false and enables HSTS headers.
+# TLS is usually terminated at a reverse proxy; set cookie_secure=true there.
+production = false
+
 [database]
 # Absolute path to the SQLite database file.
 # The directory must be writable by the nx9-auth user.

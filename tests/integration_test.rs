@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrow)]
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
@@ -12,7 +13,6 @@ use nx9_auth::{
     db::{
         self,
         models::{ApiToken, Role, Tenant, User, UserStatus},
-        repository::{roles as role_repo, tokens as token_repo},
     },
     error::AppError,
     identity::{
@@ -28,46 +28,56 @@ mod identity_users {
     use super::SecurityConfig;
     use super::User;
     use super::identity_users_real;
-    use sqlx::SqlitePool;
 
     pub async fn create_user(
-        pool: &SqlitePool,
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
         cfg: &SecurityConfig,
         tenant_id: &str,
         username: &str,
         password: &str,
     ) -> Result<User, AppError> {
-        identity_users_real::create_user(pool, cfg, tenant_id, username, password, None, None, None)
-            .await
+        identity_users_real::create_user(
+            &provider, cfg, tenant_id, username, password, None, None, None,
+        )
+        .await
     }
 
-    pub async fn get_user(pool: &SqlitePool, id: &str) -> Result<User, AppError> {
-        identity_users_real::get_user(pool, id).await
+    pub async fn get_user(
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
+        id: &str,
+    ) -> Result<User, AppError> {
+        identity_users_real::get_user(&provider, id).await
     }
 
-    pub async fn get_user_by_username(pool: &SqlitePool, username: &str) -> Result<User, AppError> {
-        identity_users_real::get_user_by_username(pool, username).await
+    pub async fn get_user_by_username(
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
+        username: &str,
+    ) -> Result<User, AppError> {
+        identity_users_real::get_user_by_username(&provider, username).await
     }
 
-    pub async fn list_users(pool: &SqlitePool, tenant_id: &str) -> Result<Vec<User>, AppError> {
-        identity_users_real::list_users(pool, tenant_id).await
+    pub async fn list_users(
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
+        tenant_id: &str,
+    ) -> Result<Vec<User>, AppError> {
+        identity_users_real::list_users(&provider, tenant_id).await
     }
 
     pub async fn update_status(
-        pool: &SqlitePool,
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
         user_id: &str,
         status: i32,
     ) -> Result<(), AppError> {
-        identity_users_real::update_status(pool, user_id, status, None, None, None).await
+        identity_users_real::update_status(&provider, user_id, status, None, None, None).await
     }
 
     pub async fn reset_password(
-        pool: &SqlitePool,
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
         cfg: &SecurityConfig,
         user_id: &str,
         new_password: &str,
     ) -> Result<(), AppError> {
-        identity_users_real::reset_password(pool, cfg, user_id, new_password, None, None, None)
+        identity_users_real::reset_password(&provider, cfg, user_id, new_password, None, None, None)
             .await
     }
 }
@@ -77,22 +87,26 @@ mod identity_roles {
     use super::AppError;
     use super::Role;
     use super::identity_roles_real;
-    use sqlx::SqlitePool;
 
     pub async fn assign_role(
-        pool: &SqlitePool,
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
         user_id: &str,
         role_name: &str,
     ) -> Result<(), AppError> {
-        identity_roles_real::assign_role(pool, user_id, role_name, None, None, None).await
+        identity_roles_real::assign_role(&provider, user_id, role_name, None, None, None).await
     }
 
-    pub async fn list_roles(pool: &SqlitePool) -> Result<Vec<Role>, AppError> {
-        identity_roles_real::list_roles(pool).await
+    pub async fn list_roles(
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
+    ) -> Result<Vec<Role>, AppError> {
+        identity_roles_real::list_roles(provider).await
     }
 
-    pub async fn list_user_roles(pool: &SqlitePool, user_id: &str) -> Result<Vec<Role>, AppError> {
-        identity_roles_real::list_user_roles(pool, user_id).await
+    pub async fn list_user_roles(
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
+        user_id: &str,
+    ) -> Result<Vec<Role>, AppError> {
+        identity_roles_real::list_user_roles(&provider, user_id).await
     }
 }
 
@@ -102,7 +116,6 @@ mod tokens {
     use super::AppError;
     use super::SecurityConfig;
     use super::tokens_real;
-    use sqlx::SqlitePool;
 
     pub fn generate_pat() -> String {
         tokens_real::generate_pat()
@@ -113,32 +126,37 @@ mod tokens {
     }
 
     pub async fn create_token(
-        pool: &SqlitePool,
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
         user_id: &str,
         name: &str,
         cfg: &SecurityConfig,
     ) -> Result<(ApiToken, String), AppError> {
-        tokens_real::create_token(pool, user_id, name, cfg, None, None, None).await
+        tokens_real::create_token(&provider, user_id, name, cfg, None, None, None).await
     }
 
     pub async fn validate_token(
-        pool: &SqlitePool,
+        provider: &std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
         raw: &str,
     ) -> Result<Option<ApiToken>, AppError> {
-        tokens_real::validate_token(pool, raw).await
+        tokens_real::validate_token(&provider, raw).await
     }
 }
 
-async fn setup_test_db() -> (sqlx::SqlitePool, String) {
+async fn setup_test_db() -> (
+    std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
+    sqlx::SqlitePool,
+    String,
+) {
     let db_id = uuid::Uuid::new_v4().to_string();
     let db_path = format!("target/test_{}.db", db_id);
     let pool = db::create_pool(&db_path)
         .await
         .expect("Failed to create test pool");
-    db::run_migrations(&pool)
+    nx9_auth::db::run_migrations(&pool)
         .await
         .expect("Failed to run test migrations");
-    (pool, db_path)
+    let provider = std::sync::Arc::new(nx9_auth::db::provider::SqliteProvider::new(pool.clone()));
+    (provider, pool, db_path)
 }
 
 async fn teardown_test_db(path: String) {
@@ -161,6 +179,8 @@ fn test_config(db_path: String) -> Config {
         server: nx9_auth::config::ServerConfig {
             host: "127.0.0.1".to_string(),
             port: 8655,
+            cookie_secure: false,
+            production: false,
         },
         database: nx9_auth::config::DatabaseConfig { path: db_path },
         security: test_security_config(),
@@ -175,7 +195,7 @@ fn test_config(db_path: String) -> Config {
 
 #[tokio::test]
 async fn test_db_migration_creates_default_tenant() {
-    let (pool, db_path) = setup_test_db().await;
+    let (_provider, pool, db_path) = setup_test_db().await;
     let exists = sqlx::query("SELECT 1 FROM tenants WHERE id = ?")
         .bind(Tenant::DEFAULT_ID)
         .fetch_optional(&pool)
@@ -188,8 +208,8 @@ async fn test_db_migration_creates_default_tenant() {
 
 #[tokio::test]
 async fn test_db_migration_seeds_admin_role() {
-    let (pool, db_path) = setup_test_db().await;
-    let role = role_repo::find_by_name(&pool, "admin").await.unwrap();
+    let (provider, _pool, db_path) = setup_test_db().await;
+    let role = provider.roles().find_by_name("admin").await.unwrap();
     assert!(role.is_some());
     assert_eq!(role.unwrap().name, "admin");
     teardown_test_db(db_path).await;
@@ -197,8 +217,8 @@ async fn test_db_migration_seeds_admin_role() {
 
 #[tokio::test]
 async fn test_db_migration_seeds_viewer_role() {
-    let (pool, db_path) = setup_test_db().await;
-    let role = role_repo::find_by_name(&pool, "viewer").await.unwrap();
+    let (provider, _pool, db_path) = setup_test_db().await;
+    let role = provider.roles().find_by_name("viewer").await.unwrap();
     assert!(role.is_some());
     assert_eq!(role.unwrap().name, "viewer");
     teardown_test_db(db_path).await;
@@ -210,10 +230,10 @@ async fn test_db_migration_seeds_viewer_role() {
 
 #[tokio::test]
 async fn test_repo_create_user_success() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "repo_user_1",
@@ -227,10 +247,10 @@ async fn test_repo_create_user_success() {
 
 #[tokio::test]
 async fn test_repo_create_user_empty_username() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let res = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "   ",
@@ -243,10 +263,10 @@ async fn test_repo_create_user_empty_username() {
 
 #[tokio::test]
 async fn test_repo_create_user_conflict() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let _ = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "repo_user_conflict",
@@ -255,7 +275,7 @@ async fn test_repo_create_user_conflict() {
     .await
     .unwrap();
     let res = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "repo_user_conflict",
@@ -268,10 +288,10 @@ async fn test_repo_create_user_conflict() {
 
 #[tokio::test]
 async fn test_repo_find_user_by_id() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "find_by_id_user",
@@ -279,17 +299,17 @@ async fn test_repo_find_user_by_id() {
     )
     .await
     .unwrap();
-    let found = identity_users::get_user(&pool, &user.id).await.unwrap();
+    let found = identity_users::get_user(&provider, &user.id).await.unwrap();
     assert_eq!(found.username, "find_by_id_user");
     teardown_test_db(db_path).await;
 }
 
 #[tokio::test]
 async fn test_repo_find_user_by_username() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let _ = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "find_by_username_user",
@@ -297,7 +317,7 @@ async fn test_repo_find_user_by_username() {
     )
     .await
     .unwrap();
-    let found = identity_users::get_user_by_username(&pool, "find_by_username_user")
+    let found = identity_users::get_user_by_username(&provider, "find_by_username_user")
         .await
         .unwrap();
     assert_eq!(found.username, "find_by_username_user");
@@ -306,10 +326,10 @@ async fn test_repo_find_user_by_username() {
 
 #[tokio::test]
 async fn test_repo_update_status() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "status_user",
@@ -317,20 +337,20 @@ async fn test_repo_update_status() {
     )
     .await
     .unwrap();
-    identity_users::update_status(&pool, &user.id, UserStatus::Disabled as i32)
+    identity_users::update_status(&provider, &user.id, UserStatus::Disabled as i32)
         .await
         .unwrap();
-    let updated = identity_users::get_user(&pool, &user.id).await.unwrap();
+    let updated = identity_users::get_user(&provider, &user.id).await.unwrap();
     assert_eq!(updated.status, UserStatus::Disabled as i32);
     teardown_test_db(db_path).await;
 }
 
 #[tokio::test]
 async fn test_repo_reset_password_strength_standard() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "pwd_reset_user",
@@ -341,21 +361,26 @@ async fn test_repo_reset_password_strength_standard() {
 
     // Standard user password reset fails with too short
     assert!(
-        identity_users::reset_password(&pool, &sec_cfg, &user.id, "short")
+        identity_users::reset_password(&provider, &sec_cfg, &user.id, "short")
             .await
             .is_err()
     );
     // Fails with weak password
     assert!(
-        identity_users::reset_password(&pool, &sec_cfg, &user.id, "password12345")
+        identity_users::reset_password(&provider, &sec_cfg, &user.id, "password12345")
             .await
             .is_err()
     );
     // Succeeds with valid
     assert!(
-        identity_users::reset_password(&pool, &sec_cfg, &user.id, "super_secure_new_phrase_123")
-            .await
-            .is_ok()
+        identity_users::reset_password(
+            &provider,
+            &sec_cfg,
+            &user.id,
+            "super_secure_new_phrase_123"
+        )
+        .await
+        .is_ok()
     );
 
     teardown_test_db(db_path).await;
@@ -363,10 +388,10 @@ async fn test_repo_reset_password_strength_standard() {
 
 #[tokio::test]
 async fn test_repo_reset_password_strength_admin() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "pwd_reset_admin",
@@ -374,20 +399,20 @@ async fn test_repo_reset_password_strength_admin() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &user.id, "admin")
+    identity_roles::assign_role(&provider, &user.id, "admin")
         .await
         .unwrap();
 
     // Admin reset fails with 8 characters (requires 12)
     assert!(
-        identity_users::reset_password(&pool, &sec_cfg, &user.id, "short_pwd")
+        identity_users::reset_password(&provider, &sec_cfg, &user.id, "short_pwd")
             .await
             .is_err()
     );
     // Succeeds with >= 12 chars
     assert!(
         identity_users::reset_password(
-            &pool,
+            &provider,
             &sec_cfg,
             &user.id,
             "super_secure_admin_new_phrase_123"
@@ -405,10 +430,10 @@ async fn test_repo_reset_password_strength_admin() {
 
 #[tokio::test]
 async fn test_role_assignment() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "role_user",
@@ -417,20 +442,22 @@ async fn test_role_assignment() {
     .await
     .unwrap();
 
-    identity_roles::assign_role(&pool, &user.id, "viewer")
+    identity_roles::assign_role(&provider, &user.id, "viewer")
         .await
         .unwrap();
-    let user_roles = role_repo::list_for_user(&pool, &user.id).await.unwrap();
+    let user_roles = nx9_auth::identity::roles::list_user_roles(&provider, &user.id)
+        .await
+        .unwrap();
     assert!(user_roles.iter().any(|r| r.name == "viewer"));
     teardown_test_db(db_path).await;
 }
 
 #[tokio::test]
 async fn test_role_removal() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "role_rm_user",
@@ -439,29 +466,35 @@ async fn test_role_removal() {
     .await
     .unwrap();
 
-    identity_roles::assign_role(&pool, &user.id, "viewer")
+    identity_roles::assign_role(&provider, &user.id, "viewer")
         .await
         .unwrap();
-    let role = role_repo::find_by_name(&pool, "viewer")
+    let role = provider
+        .roles()
+        .find_by_name("viewer")
         .await
         .unwrap()
         .unwrap();
-    let mut tx = pool.begin().await.unwrap();
-    role_repo::remove_from_user(&mut tx, &user.id, &role.id)
+    let tx = pool.begin().await.unwrap();
+    provider
+        .roles()
+        .remove_from_user(&user.id, &role.id)
         .await
         .unwrap();
     tx.commit().await.unwrap();
-    let user_roles = role_repo::list_for_user(&pool, &user.id).await.unwrap();
+    let user_roles = nx9_auth::identity::roles::list_user_roles(&provider, &user.id)
+        .await
+        .unwrap();
     assert!(user_roles.is_empty());
     teardown_test_db(db_path).await;
 }
 
 #[tokio::test]
 async fn test_permission_listing_admin() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "perm_admin",
@@ -469,11 +502,11 @@ async fn test_permission_listing_admin() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &user.id, "admin")
+    identity_roles::assign_role(&provider, &user.id, "admin")
         .await
         .unwrap();
 
-    let perms = identity_perms::list_user_permissions(&pool, &user.id)
+    let perms = identity_perms::list_user_permissions(&provider, &user.id)
         .await
         .unwrap();
     assert!(perms.contains(&"users:create".to_string()));
@@ -487,10 +520,10 @@ async fn test_permission_listing_admin() {
 
 #[tokio::test]
 async fn test_session_creation_success() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "sess_create_user",
@@ -500,7 +533,7 @@ async fn test_session_creation_success() {
     .unwrap();
 
     let (session, raw_token) =
-        sessions::create_session(&pool, &user.id, Some("127.0.0.1"), None, &sec_cfg)
+        sessions::create_session(&provider, &user.id, Some("127.0.0.1"), None, &sec_cfg)
             .await
             .unwrap();
     assert_eq!(session.user_id, user.id);
@@ -510,10 +543,10 @@ async fn test_session_creation_success() {
 
 #[tokio::test]
 async fn test_session_validation_valid_token() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "sess_val_user",
@@ -523,10 +556,10 @@ async fn test_session_validation_valid_token() {
     .unwrap();
 
     let (_, raw_token) =
-        sessions::create_session(&pool, &user.id, Some("127.0.0.1"), None, &sec_cfg)
+        sessions::create_session(&provider, &user.id, Some("127.0.0.1"), None, &sec_cfg)
             .await
             .unwrap();
-    let validated = sessions::validate_session(&pool, &raw_token, &sec_cfg)
+    let validated = sessions::validate_session(&provider, &raw_token, &sec_cfg)
         .await
         .unwrap();
     assert!(validated.is_some());
@@ -536,10 +569,10 @@ async fn test_session_validation_valid_token() {
 
 #[tokio::test]
 async fn test_session_validation_revoked_token() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "sess_rev_user",
@@ -549,11 +582,13 @@ async fn test_session_validation_revoked_token() {
     .unwrap();
 
     let (session, raw_token) =
-        sessions::create_session(&pool, &user.id, Some("127.0.0.1"), None, &sec_cfg)
+        sessions::create_session(&provider, &user.id, Some("127.0.0.1"), None, &sec_cfg)
             .await
             .unwrap();
-    sessions::revoke_session(&pool, &session.id).await.unwrap();
-    let validated = sessions::validate_session(&pool, &raw_token, &sec_cfg)
+    sessions::revoke_session(&provider, &session.id)
+        .await
+        .unwrap();
+    let validated = sessions::validate_session(&provider, &raw_token, &sec_cfg)
         .await
         .unwrap();
     assert!(validated.is_none());
@@ -566,10 +601,10 @@ async fn test_session_validation_revoked_token() {
 
 #[tokio::test]
 async fn test_pat_creation_and_validation() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "pat_user",
@@ -578,12 +613,12 @@ async fn test_pat_creation_and_validation() {
     .await
     .unwrap();
 
-    let (token, raw_pat) = tokens::create_token(&pool, &user.id, "my-token", &sec_cfg)
+    let (token, raw_pat) = tokens::create_token(&provider, &user.id, "my-token", &sec_cfg)
         .await
         .unwrap();
     assert!(raw_pat.starts_with("nx9_pat_"));
 
-    let validated = tokens::validate_token(&pool, &raw_pat)
+    let validated = tokens::validate_token(&provider, &raw_pat)
         .await
         .unwrap()
         .unwrap();
@@ -593,10 +628,10 @@ async fn test_pat_creation_and_validation() {
 
 #[tokio::test]
 async fn test_pat_revocation() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, pool, db_path) = setup_test_db().await;
     let sec_cfg = test_security_config();
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &sec_cfg,
         Tenant::DEFAULT_ID,
         "pat_rev_user",
@@ -605,14 +640,14 @@ async fn test_pat_revocation() {
     .await
     .unwrap();
 
-    let (token, raw_pat) = tokens::create_token(&pool, &user.id, "my-token", &sec_cfg)
+    let (token, raw_pat) = tokens::create_token(&provider, &user.id, "my-token", &sec_cfg)
         .await
         .unwrap();
-    let mut tx = pool.begin().await.unwrap();
-    token_repo::revoke(&mut tx, &token.id).await.unwrap();
+    let tx = pool.begin().await.unwrap();
+    provider.tokens().revoke(&token.id).await.unwrap();
     tx.commit().await.unwrap();
 
-    let validated = tokens::validate_token(&pool, &raw_pat).await.unwrap();
+    let validated = tokens::validate_token(&provider, &raw_pat).await.unwrap();
     assert!(validated.is_none());
     teardown_test_db(db_path).await;
 }
@@ -623,9 +658,9 @@ async fn test_pat_revocation() {
 
 #[tokio::test]
 async fn test_api_health_endpoint() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool, config);
+    let state = AppState::new(provider.clone(), config);
     let app = api::router::build(state);
 
     let req = Request::builder()
@@ -639,9 +674,9 @@ async fn test_api_health_endpoint() {
 
 #[tokio::test]
 async fn test_api_version_endpoint() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool, config);
+    let state = AppState::new(provider.clone(), config);
     let app = api::router::build(state);
 
     let req = Request::builder()
@@ -655,14 +690,14 @@ async fn test_api_version_endpoint() {
 
 #[tokio::test]
 async fn test_api_login_success() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     let password = "super_secure_passphrase_123";
     let _ = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "login_ok_user",
@@ -694,13 +729,13 @@ async fn test_api_login_success() {
 
 #[tokio::test]
 async fn test_api_login_invalid_password() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     let _ = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "login_err_user",
@@ -724,9 +759,9 @@ async fn test_api_login_invalid_password() {
 
 #[tokio::test]
 async fn test_api_login_invalid_user() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     let req = Request::builder()
@@ -744,13 +779,13 @@ async fn test_api_login_invalid_user() {
 
 #[tokio::test]
 async fn test_api_me_authenticated() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     let _ = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "me_user",
@@ -791,9 +826,9 @@ async fn test_api_me_authenticated() {
 
 #[tokio::test]
 async fn test_api_me_unauthenticated() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool, config);
+    let state = AppState::new(provider.clone(), config);
     let app = api::router::build(state);
 
     let req = Request::builder()
@@ -807,13 +842,13 @@ async fn test_api_me_unauthenticated() {
 
 #[tokio::test]
 async fn test_api_logout_success() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     let _ = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "logout_user",
@@ -865,14 +900,14 @@ async fn test_api_logout_success() {
 
 #[tokio::test]
 async fn test_api_list_users_viewer_forbidden() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create a viewer user
     let viewer = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_viewer",
@@ -880,7 +915,7 @@ async fn test_api_list_users_viewer_forbidden() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &viewer.id, "viewer")
+    identity_roles::assign_role(&provider, &viewer.id, "viewer")
         .await
         .unwrap();
 
@@ -918,14 +953,14 @@ async fn test_api_list_users_viewer_forbidden() {
 
 #[tokio::test]
 async fn test_api_list_users_admin_allowed() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create an admin user
     let admin = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_admin_list",
@@ -933,7 +968,7 @@ async fn test_api_list_users_admin_allowed() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &admin.id, "admin")
+    identity_roles::assign_role(&provider, &admin.id, "admin")
         .await
         .unwrap();
 
@@ -971,9 +1006,9 @@ async fn test_api_list_users_admin_allowed() {
 
 #[tokio::test]
 async fn test_api_create_user_unauthorized() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool, config);
+    let state = AppState::new(provider.clone(), config);
     let app = api::router::build(state);
 
     // Call user creation without cookie
@@ -992,14 +1027,14 @@ async fn test_api_create_user_unauthorized() {
 
 #[tokio::test]
 async fn test_api_create_user_authorized() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create admin
     let admin = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_admin_creator",
@@ -1007,7 +1042,7 @@ async fn test_api_create_user_authorized() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &admin.id, "admin")
+    identity_roles::assign_role(&provider, &admin.id, "admin")
         .await
         .unwrap();
 
@@ -1049,14 +1084,14 @@ async fn test_api_create_user_authorized() {
 
 #[tokio::test]
 async fn test_api_delete_user_self_forbidden() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create admin
     let admin = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_admin_del_self",
@@ -1064,7 +1099,7 @@ async fn test_api_delete_user_self_forbidden() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &admin.id, "admin")
+    identity_roles::assign_role(&provider, &admin.id, "admin")
         .await
         .unwrap();
 
@@ -1097,20 +1132,20 @@ async fn test_api_delete_user_self_forbidden() {
         .body(Body::empty())
         .unwrap();
     let res = app.oneshot(req).await.unwrap();
-    assert_eq!(res.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
     teardown_test_db(db_path).await;
 }
 
 #[tokio::test]
 async fn test_api_delete_user_success() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create admin
     let admin = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_admin_deleter",
@@ -1118,13 +1153,13 @@ async fn test_api_delete_user_success() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &admin.id, "admin")
+    identity_roles::assign_role(&provider, &admin.id, "admin")
         .await
         .unwrap();
 
     // Create standard user to delete
     let target = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "delete_target",
@@ -1168,14 +1203,14 @@ async fn test_api_delete_user_success() {
 
 #[tokio::test]
 async fn test_api_token_creation_and_listing() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create admin
     let admin = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_admin_token",
@@ -1183,7 +1218,7 @@ async fn test_api_token_creation_and_listing() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &admin.id, "admin")
+    identity_roles::assign_role(&provider, &admin.id, "admin")
         .await
         .unwrap();
 
@@ -1232,14 +1267,14 @@ async fn test_api_token_creation_and_listing() {
 
 #[tokio::test]
 async fn test_api_token_revocation() {
-    let (pool, db_path) = setup_test_db().await;
+    let (provider, _pool, db_path) = setup_test_db().await;
     let config = test_config(db_path.clone());
-    let state = AppState::new(pool.clone(), config.clone());
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
 
     // Create admin
     let admin = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         "api_admin_tok_rev",
@@ -1247,7 +1282,7 @@ async fn test_api_token_revocation() {
     )
     .await
     .unwrap();
-    identity_roles::assign_role(&pool, &admin.id, "admin")
+    identity_roles::assign_role(&provider, &admin.id, "admin")
         .await
         .unwrap();
 
@@ -1300,5 +1335,73 @@ async fn test_api_token_revocation() {
         .unwrap();
     let res = app.oneshot(req).await.unwrap();
     assert_eq!(res.status(), StatusCode::OK);
+    teardown_test_db(db_path).await;
+}
+
+#[tokio::test]
+async fn test_api_dashboard_success() {
+    let (provider, _pool, db_path) = setup_test_db().await;
+    let config = test_config(db_path.clone());
+    let state = AppState::new(provider.clone(), config.clone());
+
+    // Create an admin user
+    let admin = identity_users::create_user(
+        &provider,
+        &config.security,
+        Tenant::DEFAULT_ID,
+        "admin_dashboard",
+        "S3cur3#P@ssw0rd!",
+    )
+    .await
+    .unwrap();
+
+    let admin_role = provider
+        .roles()
+        .find_by_name("admin")
+        .await
+        .unwrap()
+        .unwrap();
+    provider
+        .roles()
+        .assign_to_user(&admin.id, &admin_role.id)
+        .await
+        .unwrap();
+
+    let app = api::router::build(state.clone());
+
+    // Login to get cookie
+    let login_req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/auth/login")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(
+            r#"{"username":"admin_dashboard","password":"S3cur3#P@ssw0rd!"}"#,
+        ))
+        .unwrap();
+    let login_res = app.clone().oneshot(login_req).await.unwrap();
+    assert_eq!(login_res.status(), StatusCode::OK);
+    let set_cookie = login_res
+        .headers()
+        .get(header::SET_COOKIE)
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let cookie = set_cookie.split(';').next().unwrap().to_string();
+
+    // Call dashboard
+    let dash_req = Request::builder()
+        .method("GET")
+        .uri("/api/v1/dashboard")
+        .header(header::COOKIE, cookie)
+        .body(Body::empty())
+        .unwrap();
+
+    let dash_res = app.oneshot(dash_req).await.unwrap();
+    let status = dash_res.status();
+    let body_bytes = dash_res.into_body().collect().await.unwrap().to_bytes();
+    let body_str = String::from_utf8(body_bytes.to_vec()).unwrap();
+
+    assert_eq!(status, StatusCode::OK, "dashboard failed: {}", body_str);
+
     teardown_test_db(db_path).await;
 }

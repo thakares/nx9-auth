@@ -1,18 +1,13 @@
-use sqlx::SqlitePool;
+use crate::db::repository::traits::AuditRepositoryExt;
 
-use crate::{
-    config::SecurityConfig,
-    db::{models::User, repository::users as repo},
-    error::AppError,
-    security::passwords,
-};
+use crate::{config::SecurityConfig, db::models::User, error::AppError, security::passwords};
 
 /// Create a new user account in the given tenant.
 ///
 /// Fails with `Conflict` if the username is already taken.
 #[allow(clippy::too_many_arguments)]
 pub async fn create_user(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     cfg: &SecurityConfig,
     tenant_id: &str,
     username: &str,
@@ -26,7 +21,9 @@ pub async fn create_user(
     }
     passwords::validate_password_strength(password, false)?;
 
-    if repo::username_exists(pool, tenant_id, username)
+    if provider
+        .users()
+        .username_exists(tenant_id, username)
         .await
         .map_err(AppError::Database)?
     {
@@ -38,15 +35,15 @@ pub async fn create_user(
     let id = uuid::Uuid::new_v4().to_string();
     let hash = passwords::hash_password(password, cfg)?;
 
-    let mut tx = pool.begin().await.map_err(AppError::Database)?;
-
-    let user = repo::create(&mut tx, &id, tenant_id, username, &hash)
+    let user = provider
+        .users()
+        .create(&id, tenant_id, username, &hash)
         .await
         .map_err(AppError::Database)?;
 
-    crate::audit::log(
-        &mut tx,
-        crate::audit::AuditEvent {
+    provider
+        .audit()
+        .log(crate::audit::AuditEvent {
             actor_id: audit_actor_id,
             target_id: Some(&user.id),
             action: "user_created",
@@ -56,42 +53,54 @@ pub async fn create_user(
             ip: audit_ip,
             ua: audit_ua,
             metadata: None,
-        },
-    )
-    .await?;
-
-    tx.commit().await.map_err(AppError::Database)?;
+        })
+        .await?;
 
     tracing::info!(user_id = %user.id, username = %username, "user created");
     Ok(user)
 }
 
 /// Retrieve a user by ID.
-pub async fn get_user(pool: &SqlitePool, id: &str) -> Result<User, AppError> {
-    repo::find_by_id(pool, id)
+pub async fn get_user(
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
+    id: &str,
+) -> Result<User, AppError> {
+    provider
+        .users()
+        .find_by_id(id)
         .await
         .map_err(AppError::Database)?
         .ok_or(AppError::NotFound)
 }
 
 /// Retrieve a user by username.
-pub async fn get_user_by_username(pool: &SqlitePool, username: &str) -> Result<User, AppError> {
-    repo::find_by_username(pool, username)
+pub async fn get_user_by_username(
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
+    username: &str,
+) -> Result<User, AppError> {
+    provider
+        .users()
+        .find_by_username(username)
         .await
         .map_err(AppError::Database)?
         .ok_or(AppError::NotFound)
 }
 
 /// List all users in a tenant.
-pub async fn list_users(pool: &SqlitePool, tenant_id: &str) -> Result<Vec<User>, AppError> {
-    repo::list(pool, tenant_id)
+pub async fn list_users(
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
+    tenant_id: &str,
+) -> Result<Vec<User>, AppError> {
+    provider
+        .users()
+        .list(tenant_id)
         .await
         .map_err(AppError::Database)
 }
 
 /// Set a user's status (Active=1, Disabled=2, Locked=3).
 pub async fn update_status(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     user_id: &str,
     status: i32,
     audit_actor_id: Option<&str>,
@@ -99,11 +108,11 @@ pub async fn update_status(
     audit_ua: Option<&str>,
 ) -> Result<(), AppError> {
     // Verify user exists first
-    let _user = get_user(pool, user_id).await?;
+    let _user = provider.users().find_by_id(user_id).await?;
 
-    let mut tx = pool.begin().await.map_err(AppError::Database)?;
-
-    repo::update_status(&mut tx, user_id, status)
+    provider
+        .users()
+        .update_status(user_id, status)
         .await
         .map_err(AppError::Database)?;
 
@@ -119,9 +128,9 @@ pub async fn update_status(
         _ => crate::db::models::AuditSeverity::Warning,
     };
 
-    crate::audit::log(
-        &mut tx,
-        crate::audit::AuditEvent {
+    provider
+        .audit()
+        .log(crate::audit::AuditEvent {
             actor_id: audit_actor_id,
             target_id: Some(user_id),
             action,
@@ -131,18 +140,16 @@ pub async fn update_status(
             ip: audit_ip,
             ua: audit_ua,
             metadata: None,
-        },
-    )
-    .await?;
+        })
+        .await?;
 
-    tx.commit().await.map_err(AppError::Database)?;
     tracing::info!(user_id = %user_id, status = %status, "user status updated");
     Ok(())
 }
 
 /// Reset a user's password.
 pub async fn reset_password(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     cfg: &SecurityConfig,
     user_id: &str,
     new_password: &str,
@@ -150,23 +157,25 @@ pub async fn reset_password(
     audit_ip: Option<&str>,
     audit_ua: Option<&str>,
 ) -> Result<(), AppError> {
-    let user = get_user(pool, user_id).await?;
-    let user_roles = crate::db::repository::roles::list_for_user(pool, &user.id)
+    let user = provider.users().find_by_id(user_id).await?;
+    let user_roles = provider
+        .roles()
+        .list_for_user(&user.unwrap().id)
         .await
         .map_err(AppError::Database)?;
     let is_admin = user_roles.iter().any(|r| r.name == "admin");
     passwords::validate_password_strength(new_password, is_admin)?;
     let hash = passwords::hash_password(new_password, cfg)?;
 
-    let mut tx = pool.begin().await.map_err(AppError::Database)?;
-
-    repo::update_password_hash(&mut tx, user_id, &hash)
+    provider
+        .users()
+        .update_password_hash(user_id, &hash)
         .await
         .map_err(AppError::Database)?;
 
-    crate::audit::log(
-        &mut tx,
-        crate::audit::AuditEvent {
+    provider
+        .audit()
+        .log(crate::audit::AuditEvent {
             actor_id: audit_actor_id,
             target_id: Some(user_id),
             action: "password_reset",
@@ -176,11 +185,8 @@ pub async fn reset_password(
             ip: audit_ip,
             ua: audit_ua,
             metadata: None,
-        },
-    )
-    .await?;
-
-    tx.commit().await.map_err(AppError::Database)?;
+        })
+        .await?;
 
     tracing::info!(user_id = %user_id, "password reset");
     Ok(())

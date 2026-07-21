@@ -42,9 +42,9 @@ impl From<User> for UserResponse {
 // ── GET /api/v1/users ─────────────────────────────────────────────────────────
 
 pub async fn list_users(State(state): State<AppState>, auth: AuthUser) -> Result<Json<Value>> {
-    require(&state.pool, &auth.user.id, "users:create").await?;
+    require(&state.provider, &auth.user.id, "users:create").await?;
 
-    let users = identity::list_users(&state.pool, Tenant::DEFAULT_ID).await?;
+    let users = identity::list_users(&state.provider, Tenant::DEFAULT_ID).await?;
     let views: Vec<UserResponse> = users.into_iter().map(UserResponse::from).collect();
     Ok(Json(json!({ "users": views })))
 }
@@ -63,10 +63,10 @@ pub async fn create_user(
     ctx: AuditContext,
     Json(body): Json<CreateUserRequest>,
 ) -> Result<Json<Value>> {
-    require(&state.pool, &auth.user.id, "users:create").await?;
+    require(&state.provider, &auth.user.id, "users:create").await?;
 
     let user = identity::create_user(
-        &state.pool,
+        &state.provider,
         &state.config.security,
         Tenant::DEFAULT_ID,
         &body.username,
@@ -89,10 +89,10 @@ pub async fn get_user(
 ) -> Result<Json<Value>> {
     // Users may view themselves; admins may view anyone
     if id != auth.user.id {
-        require(&state.pool, &auth.user.id, "users:create").await?;
+        require(&state.provider, &auth.user.id, "users:create").await?;
     }
 
-    let user = identity::get_user(&state.pool, &id).await?;
+    let user = identity::get_user(&state.provider, &id).await?;
     Ok(Json(json!({ "user": UserResponse::from(user) })))
 }
 
@@ -110,7 +110,7 @@ pub async fn update_user(
     Path(id): Path<String>,
     Json(body): Json<UpdateUserRequest>,
 ) -> Result<Json<Value>> {
-    require(&state.pool, &auth.user.id, "users:update").await?;
+    require(&state.provider, &auth.user.id, "users:update").await?;
 
     if let Some(status_str) = &body.status {
         let status = match status_str.as_str() {
@@ -120,7 +120,7 @@ pub async fn update_user(
             other => return Err(AppError::InvalidInput(format!("unknown status: {other}"))),
         };
         identity::update_status(
-            &state.pool,
+            &state.provider,
             &id,
             status,
             Some(&auth.user.id),
@@ -130,7 +130,7 @@ pub async fn update_user(
         .await?;
     }
 
-    let user = identity::get_user(&state.pool, &id).await?;
+    let user = identity::get_user(&state.provider, &id).await?;
     Ok(Json(json!({ "user": UserResponse::from(user) })))
 }
 
@@ -143,7 +143,7 @@ pub async fn delete_user(
     ctx: AuditContext,
     Path(id): Path<String>,
 ) -> Result<Json<Value>> {
-    require(&state.pool, &auth.user.id, "users:delete").await?;
+    require(&state.provider, &auth.user.id, "users:delete").await?;
 
     // Prevent self-deletion
     if id == auth.user.id {
@@ -153,7 +153,7 @@ pub async fn delete_user(
     }
 
     identity::update_status(
-        &state.pool,
+        &state.provider,
         &id,
         UserStatus::Disabled as i32,
         Some(&auth.user.id),
@@ -163,4 +163,55 @@ pub async fn delete_user(
     .await?;
 
     Ok(Json(json!({ "success": true })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResetPasswordRequest {
+    pub password: String,
+}
+
+/// POST /api/v1/users/:id/reset-password
+pub async fn reset_password(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    ctx: AuditContext,
+    Path(id): Path<String>,
+    Json(body): Json<ResetPasswordRequest>,
+) -> Result<Json<Value>> {
+    require(&state.provider, &auth.user.id, "users:update").await?;
+
+    identity::reset_password(
+        &state.provider,
+        &state.config.security,
+        &id,
+        &body.password,
+        Some(&auth.user.id),
+        ctx.ip_address.as_deref(),
+        ctx.user_agent.as_deref(),
+    )
+    .await?;
+
+    Ok(Json(json!({ "success": true })))
+}
+
+/// GET /api/v1/users/:id/roles
+pub async fn list_user_roles(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<Value>> {
+    if id != auth.user.id {
+        require(&state.provider, &auth.user.id, "users:create").await?;
+    }
+
+    let roles = state.provider.roles().list_for_user(&id).await?;
+    Ok(Json(json!({
+        "roles": roles.into_iter().map(|r| {
+            json!({
+                "id": r.id,
+                "name": r.name,
+                "description": r.description,
+            })
+        }).collect::<Vec<_>>(),
+    })))
 }

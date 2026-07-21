@@ -18,3 +18,5 @@ pub use service_account::ServiceAccount;
 pub use session::Session;
 pub use tenant::Tenant;
 pub use user::{User, UserStatus};
+pub mod group;
+pub use group::Group;

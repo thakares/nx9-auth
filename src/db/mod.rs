@@ -1,12 +1,9 @@
 use anyhow::{Context, Result};
+#[cfg(feature = "sqlite")]
 use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
 
-/// Create and configure the SQLite connection pool.
-///
-/// Enables WAL mode, foreign keys, and a busy timeout so concurrent writers
-/// do not immediately error — they back off and retry for up to 5 seconds.
+#[cfg(feature = "sqlite")]
 pub async fn create_pool(path: &str) -> Result<SqlitePool> {
-    // Ensure the parent directory exists
     if let Some(parent) = std::path::Path::new(path).parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent).with_context(|| {
@@ -16,7 +13,6 @@ pub async fn create_pool(path: &str) -> Result<SqlitePool> {
     }
 
     let url = format!("sqlite://{}?mode=rwc", path);
-
     let pool = SqlitePoolOptions::new()
         .max_connections(16)
         .min_connections(1)
@@ -24,28 +20,23 @@ pub async fn create_pool(path: &str) -> Result<SqlitePool> {
         .await
         .with_context(|| format!("failed to open database: {path}"))?;
 
-    // Apply foundational PRAGMAs on every connection
     sqlx::query("PRAGMA journal_mode = WAL")
         .execute(&pool)
         .await
         .context("PRAGMA journal_mode")?;
-
     sqlx::query("PRAGMA foreign_keys = ON")
         .execute(&pool)
         .await
         .context("PRAGMA foreign_keys")?;
-
     sqlx::query("PRAGMA busy_timeout = 5000")
         .execute(&pool)
         .await
         .context("PRAGMA busy_timeout")?;
-
     sqlx::query("PRAGMA synchronous = NORMAL")
         .execute(&pool)
         .await
         .context("PRAGMA synchronous")?;
-
-    sqlx::query("PRAGMA cache_size = -32768") // 32 MiB page cache
+    sqlx::query("PRAGMA cache_size = -32768")
         .execute(&pool)
         .await
         .context("PRAGMA cache_size")?;
@@ -54,9 +45,9 @@ pub async fn create_pool(path: &str) -> Result<SqlitePool> {
     Ok(pool)
 }
 
-/// Run all pending SQLx migrations embedded in `src/db/migrations/`.
+#[cfg(feature = "sqlite")]
 pub async fn run_migrations(pool: &SqlitePool) -> Result<()> {
-    sqlx::migrate!("src/db/migrations")
+    sqlx::migrate!("src/db/migrations/sqlite")
         .run(pool)
         .await
         .context("failed to run database migrations")?;
@@ -64,5 +55,29 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<()> {
     Ok(())
 }
 
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+pub async fn create_pool(url: &str) -> Result<PgPool> {
+    let pool = PgPoolOptions::new()
+        .max_connections(16)
+        .min_connections(1)
+        .connect(url)
+        .await
+        .with_context(|| format!("failed to open database: {url}"))?;
+
+    tracing::info!(url = url, "postgres pool opened");
+    Ok(pool)
+}
+
+#[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+pub async fn run_migrations(pool: &PgPool) -> Result<()> {
+    sqlx::migrate!("src/db/migrations/postgres")
+        .run(pool)
+        .await
+        .context("failed to run postgres migrations")?;
+    tracing::info!("postgres migrations applied");
+    Ok(())
+}
+
 pub mod models;
+pub mod provider;
 pub mod repository;

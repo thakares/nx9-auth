@@ -1,11 +1,7 @@
+use crate::db::repository::traits::AuditRepositoryExt;
 use rand::RngCore;
-use sqlx::SqlitePool;
 
-use crate::{
-    config::SecurityConfig,
-    db::{models::ApiToken, repository::tokens as repo},
-    error::AppError,
-};
+use crate::{config::SecurityConfig, db::models::ApiToken, error::AppError};
 
 /// Prefix for all personal access tokens.
 pub const PAT_PREFIX: &str = "nx9_pat_";
@@ -29,7 +25,7 @@ pub fn hash_token(raw: &str) -> String {
 /// Returns `(ApiToken row, raw_token)` — the raw token is shown once and
 /// never stored. Only the BLAKE3 hash is persisted.
 pub async fn create_token(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     user_id: &str,
     name: &str,
     cfg: &SecurityConfig,
@@ -44,16 +40,16 @@ pub async fn create_token(
     let expires_at = chrono::Utc::now() + chrono::Duration::days(cfg.token_ttl_days as i64);
     let expires_at_str = expires_at.format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
-    let mut tx = pool.begin().await.map_err(AppError::Database)?;
-
-    let token = repo::create(&mut tx, &id, user_id, name, &hash, Some(&expires_at_str))
+    let token = provider
+        .tokens()
+        .create(&id, user_id, name, &hash, Some(&expires_at_str))
         .await
         .map_err(AppError::Database)?;
 
     let metadata = serde_json::json!({ "token_id": token.id, "name": name }).to_string();
-    crate::audit::log(
-        &mut tx,
-        crate::audit::AuditEvent {
+    provider
+        .audit()
+        .log(crate::audit::AuditEvent {
             actor_id: audit_actor_id,
             target_id: Some(user_id),
             action: "token_created",
@@ -63,38 +59,37 @@ pub async fn create_token(
             ip: audit_ip,
             ua: audit_ua,
             metadata: Some(&metadata),
-        },
-    )
-    .await?;
-
-    tx.commit().await.map_err(AppError::Database)?;
+        })
+        .await?;
 
     Ok((token, raw))
 }
 
 /// Revoke a personal access token.
 pub async fn revoke_token(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     id: &str,
     audit_actor_id: Option<&str>,
     audit_ip: Option<&str>,
     audit_ua: Option<&str>,
 ) -> Result<(), AppError> {
-    let token = repo::find_by_id(pool, id)
+    let token = provider
+        .tokens()
+        .find_by_id(id)
         .await
         .map_err(AppError::Database)?
         .ok_or(AppError::NotFound)?;
 
-    let mut tx = pool.begin().await.map_err(AppError::Database)?;
-
-    repo::revoke(&mut tx, id)
+    provider
+        .tokens()
+        .revoke(id)
         .await
         .map_err(AppError::Database)?;
 
     let metadata = serde_json::json!({ "token_id": id, "name": token.name }).to_string();
-    crate::audit::log(
-        &mut tx,
-        crate::audit::AuditEvent {
+    provider
+        .audit()
+        .log(crate::audit::AuditEvent {
             actor_id: audit_actor_id,
             target_id: Some(&token.user_id),
             action: "token_revoked",
@@ -104,11 +99,9 @@ pub async fn revoke_token(
             ip: audit_ip,
             ua: audit_ua,
             metadata: Some(&metadata),
-        },
-    )
-    .await?;
+        })
+        .await?;
 
-    tx.commit().await.map_err(AppError::Database)?;
     Ok(())
 }
 
@@ -116,14 +109,19 @@ pub async fn revoke_token(
 ///
 /// Strips the `nx9_pat_` prefix, hashes it, and looks it up. Returns `None`
 /// if the token is unknown, revoked, or expired.
-pub async fn validate_token(pool: &SqlitePool, raw: &str) -> Result<Option<ApiToken>, AppError> {
+pub async fn validate_token(
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
+    raw: &str,
+) -> Result<Option<ApiToken>, AppError> {
     // Must have the expected prefix
     if !raw.starts_with(PAT_PREFIX) {
         return Ok(None);
     }
 
     let hash = hash_token(raw);
-    let token = repo::find_by_hash(pool, &hash)
+    let token = provider
+        .tokens()
+        .find_by_hash(&hash)
         .await
         .map_err(AppError::Database)?;
 
@@ -141,7 +139,7 @@ pub async fn validate_token(pool: &SqlitePool, raw: &str) -> Result<Option<ApiTo
     }
 
     // Touch last_used_at (fire-and-forget)
-    let _ = repo::update_last_used(pool, &token.id).await;
+    let _ = provider.tokens().update_last_used(&token.id).await;
 
     Ok(Some(token))
 }

@@ -1,21 +1,20 @@
+use crate::db::provider::DatabaseProvider;
 use std::sync::Arc;
-
-use sqlx::SqlitePool;
 
 use crate::{config::Config, security::RateLimiter};
 
 /// Shared application state injected into every Axum handler via `State<AppState>`.
 #[derive(Clone)]
 pub struct AppState {
-    pub pool: SqlitePool,
+    pub provider: Arc<dyn DatabaseProvider>,
     pub config: Arc<Config>,
     pub rate_limiter: Arc<RateLimiter>,
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool, config: Config) -> Self {
+    pub fn new(provider: Arc<dyn DatabaseProvider>, config: Config) -> Self {
         Self {
-            pool,
+            provider,
             config: Arc::new(config),
             rate_limiter: RateLimiter::new(),
         }

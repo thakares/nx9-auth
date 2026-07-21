@@ -1,11 +1,6 @@
 use rand::RngCore;
-use sqlx::SqlitePool;
 
-use crate::{
-    config::SecurityConfig,
-    db::{models::Session, repository::sessions as repo},
-    error::AppError,
-};
+use crate::{config::SecurityConfig, db::models::Session, error::AppError};
 
 pub const SESSION_COOKIE: &str = "nx9_session";
 
@@ -26,7 +21,7 @@ pub fn hash_session_token(raw: &str) -> String {
 /// Returns `(Session row, raw_token)` — the raw token is placed in the cookie
 /// and never stored. Only the BLAKE3 hash is persisted.
 pub async fn create_session(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     user_id: &str,
     ip_address: Option<&str>,
     user_agent: Option<&str>,
@@ -42,17 +37,18 @@ pub async fn create_session(
 
     let id = uuid::Uuid::new_v4().to_string();
 
-    let session = repo::create(
-        pool,
-        &id,
-        user_id,
-        &token_hash,
-        ip_address,
-        user_agent,
-        &expires_at_str,
-    )
-    .await
-    .map_err(AppError::Database)?;
+    let session = provider
+        .sessions()
+        .create(
+            &id,
+            user_id,
+            &token_hash,
+            ip_address,
+            user_agent,
+            &expires_at_str,
+        )
+        .await
+        .map_err(AppError::Database)?;
 
     Ok((session, raw_token))
 }
@@ -62,13 +58,15 @@ pub async fn create_session(
 /// Enforces both absolute TTL and idle timeout. Touches `last_seen_at` on
 /// every successful validation.
 pub async fn validate_session(
-    pool: &SqlitePool,
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
     raw_token: &str,
     cfg: &SecurityConfig,
 ) -> Result<Option<Session>, AppError> {
     let token_hash = hash_session_token(raw_token);
 
-    let session = repo::find_by_token_hash(pool, &token_hash)
+    let session = provider
+        .sessions()
+        .find_by_token_hash(&token_hash)
         .await
         .map_err(AppError::Database)?;
 
@@ -81,7 +79,9 @@ pub async fn validate_session(
     // Check absolute expiry
     if let Ok(expires) = chrono::DateTime::parse_from_rfc3339(&session.expires_at) {
         if now > expires {
-            repo::revoke(pool, &session.id)
+            provider
+                .sessions()
+                .revoke(&session.id)
                 .await
                 .map_err(AppError::Database)?;
             return Ok(None);
@@ -92,7 +92,9 @@ pub async fn validate_session(
     if let Ok(last_seen) = chrono::DateTime::parse_from_rfc3339(&session.last_seen_at) {
         let idle_deadline = last_seen + chrono::Duration::hours(cfg.session_ttl_hours as i64);
         if now > idle_deadline {
-            repo::revoke(pool, &session.id)
+            provider
+                .sessions()
+                .revoke(&session.id)
                 .await
                 .map_err(AppError::Database)?;
             return Ok(None);
@@ -100,14 +102,19 @@ pub async fn validate_session(
     }
 
     // Touch last_seen (fire-and-forget — don't fail the request if this errors)
-    let _ = repo::update_last_seen(pool, &session.id).await;
+    let _ = provider.sessions().update_last_seen(&session.id).await;
 
     Ok(Some(session))
 }
 
 /// Revoke a session by its ID.
-pub async fn revoke_session(pool: &SqlitePool, session_id: &str) -> Result<(), AppError> {
-    repo::revoke(pool, session_id)
+pub async fn revoke_session(
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
+    session_id: &str,
+) -> Result<(), AppError> {
+    provider
+        .sessions()
+        .revoke(session_id)
         .await
         .map_err(AppError::Database)
 }

@@ -16,6 +16,7 @@ name = "nx9_auth"
 path = "src/lib.rs"
 
 [dependencies]
+async-trait = "0.1"
 # HTTP framework
 axum = { version = "0.8.9", features = ["macros"] }
 axum-extra = { version = "0.12", features = ["cookie"] }
@@ -25,8 +26,9 @@ tower-http = { version = "0.6.11", features = ["trace", "request-id", "compressi
 # Async runtime
 tokio = { version = "1.52.3", features = ["full"] }
 
+
 # Database
-sqlx = { version = "0.9.0", features = ["runtime-tokio", "sqlite", "chrono", "macros"] }
+sqlx = { version = "0.9.0", features = ["runtime-tokio", "chrono", "macros"] }
 
 # Password hashing
 argon2 = "0.5.3"
@@ -80,3 +82,7 @@ debug = true
 [dev-dependencies]
 http-body-util = "0.1"
 
+[features]
+default = ["sqlite"]
+sqlite = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]

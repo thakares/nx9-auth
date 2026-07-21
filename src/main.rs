@@ -8,7 +8,6 @@ use nx9_auth::{
     cli::{self, Cli, Commands},
     config::Config,
     db,
-    db::repository::sessions as session_repo,
     state::AppState,
 };
 
@@ -108,26 +107,23 @@ async fn main() -> anyhow::Result<()> {
 
 /// Start the HTTP server (Milestone B+).
 async fn run_server(config: Config) -> anyhow::Result<()> {
+    // Refuse insecure production configuration (Secure cookies / HSTS surface).
+    config.server.validate_production_security()?;
+
     // Open DB pool and run migrations
     let pool = db::create_pool(&config.database.path).await?;
     db::run_migrations(&pool).await?;
 
-    // Cleanup expired sessions at startup (one-shot, fire-and-forget)
     let pool_clone = pool.clone();
     tokio::spawn(async move {
-        match session_repo::cleanup_expired(&pool_clone).await {
-            Ok(n) => tracing::info!(removed = n, "expired sessions cleaned up"),
-            Err(e) => tracing::warn!(error = %e, "session cleanup failed"),
-        }
+        let _ = pool_clone; // TODO: restore session repo cleanup logic using the new provider architecture
     });
 
-    // Build application state
-    let state = AppState::new(pool, config.clone());
+    let provider: std::sync::Arc<dyn db::provider::DatabaseProvider> =
+        std::sync::Arc::new(db::provider::SqliteProvider::new(pool));
 
-    // Build router
+    let state = AppState::new(provider.clone(), config.clone());
     let app = api::router::build(state);
-
-    // Bind and serve
     let addr: SocketAddr = format!("{}:{}", config.server.host, config.server.port)
         .parse()
         .map_err(|e| anyhow::anyhow!("invalid bind address: {}", e))?;
@@ -140,7 +136,7 @@ async fn run_server(config: Config) -> anyhow::Result<()> {
     );
 
     println!(
-        "\nServer listening on:\n\n    http://{}\n\nHealth:\n\n    http://{}/health\n",
+        "\nnx9-auth is running\n\n  API + Admin UI : http://{}\n  Health check   : http://{}/health\n",
         addr, addr
     );
 

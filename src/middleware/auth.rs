@@ -6,7 +6,6 @@ use axum_extra::extract::CookieJar;
 
 use crate::{
     db::models::User,
-    db::repository::users as user_repo,
     error::AppError,
     security::{sessions, tokens},
     state::AppState,
@@ -47,9 +46,13 @@ where
         if let Some(cookie) = jar.get(sessions::SESSION_COOKIE) {
             let raw = cookie.value();
             if let Some(session) =
-                sessions::validate_session(&app_state.pool, raw, &app_state.config.security).await?
+                sessions::validate_session(&app_state.provider, raw, &app_state.config.security)
+                    .await?
             {
-                let user = user_repo::find_by_id(&app_state.pool, &session.user_id)
+                let user = app_state
+                    .provider
+                    .users()
+                    .find_by_id(&session.user_id)
                     .await
                     .map_err(AppError::Database)?
                     .ok_or(AppError::Unauthorized)?;
@@ -66,13 +69,20 @@ where
             }
         }
 
-        // 2. Try Bearer token in Authorization header
+        // 2. Try Authorization: Bearer — PAT first, then session token.
+        //    Session tokens are returned from /auth/login for SPA clients that
+        //    cannot rely solely on the HttpOnly cookie.
         if let Some(auth_header) = parts.headers.get(axum::http::header::AUTHORIZATION) {
             if let Ok(value) = auth_header.to_str() {
                 if let Some(raw) = value.strip_prefix("Bearer ") {
-                    if let Some(token) = tokens::validate_token(&app_state.pool, raw.trim()).await?
-                    {
-                        let user = user_repo::find_by_id(&app_state.pool, &token.user_id)
+                    let raw = raw.trim();
+
+                    // 2a. Personal access token
+                    if let Some(token) = tokens::validate_token(&app_state.provider, raw).await? {
+                        let user = app_state
+                            .provider
+                            .users()
+                            .find_by_id(&token.user_id)
                             .await
                             .map_err(AppError::Database)?
                             .ok_or(AppError::Unauthorized)?;
@@ -85,6 +95,33 @@ where
                             user,
                             method: AuthMethod::Token,
                             session_id: None,
+                        });
+                    }
+
+                    // 2b. Session token (same value as nx9_session cookie)
+                    if let Some(session) = sessions::validate_session(
+                        &app_state.provider,
+                        raw,
+                        &app_state.config.security,
+                    )
+                    .await?
+                    {
+                        let user = app_state
+                            .provider
+                            .users()
+                            .find_by_id(&session.user_id)
+                            .await
+                            .map_err(AppError::Database)?
+                            .ok_or(AppError::Unauthorized)?;
+
+                        if !user.is_active() {
+                            return Err(AppError::Unauthorized);
+                        }
+
+                        return Ok(AuthUser {
+                            user,
+                            method: AuthMethod::Session,
+                            session_id: Some(session.id),
                         });
                     }
                 }

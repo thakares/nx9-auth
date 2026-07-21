@@ -1,4 +1,4 @@
-use nx9_auth::db::{self, models::Tenant, repository::roles as role_repo};
+use nx9_auth::db::{self, models::Tenant};
 
 async fn setup_test_db() -> (sqlx::SqlitePool, String) {
     let db_id = uuid::Uuid::new_v4().to_string();
@@ -53,10 +53,12 @@ async fn test_migration_scenario_1_fresh() {
         .is_some();
     assert!(tenant_exists);
 
-    let admin_role = role_repo::find_by_name(&pool, "admin").await.unwrap();
+    let provider: std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider> =
+        std::sync::Arc::new(nx9_auth::db::provider::SqliteProvider::new(pool.clone()));
+    let admin_role = provider.roles().find_by_name("admin").await.unwrap();
     assert!(admin_role.is_some());
 
-    let viewer_role = role_repo::find_by_name(&pool, "viewer").await.unwrap();
+    let viewer_role = provider.roles().find_by_name("viewer").await.unwrap();
     assert!(viewer_role.is_some());
 
     teardown_test_db(db_path).await;
@@ -70,7 +72,7 @@ async fn test_migration_scenario_1_fresh() {
 async fn test_migration_scenario_2_incremental() {
     let (pool, db_path) = setup_test_db().await;
 
-    let migrator = sqlx::migrate!("src/db/migrations");
+    let migrator = sqlx::migrate!("src/db/migrations/sqlite");
     let all_migrations = &migrator.migrations;
     assert!(
         all_migrations.len() >= 3,

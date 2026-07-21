@@ -1,13 +1,13 @@
 use nx9_auth::{
     config::SecurityConfig,
-    db::{self, models::Tenant},
+    db::{self, models::Tenant, provider::SqliteProvider},
     identity::users as identity_users,
     security::{passwords, sessions, tokens},
 };
-use sqlx::SqlitePool;
+use std::sync::Arc;
 use std::time::Instant;
 
-async fn setup_bench_db() -> (SqlitePool, String) {
+async fn setup_bench_db() -> (Arc<dyn nx9_auth::db::provider::DatabaseProvider>, String) {
     let db_id = uuid::Uuid::new_v4().to_string();
     let db_path = format!("target/bench_{}.db", db_id);
     let pool = db::create_pool(&db_path)
@@ -16,7 +16,9 @@ async fn setup_bench_db() -> (SqlitePool, String) {
     db::run_migrations(&pool)
         .await
         .expect("Failed to run bench migrations");
-    (pool, db_path)
+    let provider: Arc<dyn nx9_auth::db::provider::DatabaseProvider> =
+        Arc::new(SqliteProvider::new(pool));
+    (provider, db_path)
 }
 
 fn print_stats(name: &str, mut durations: Vec<std::time::Duration>, count: usize) {
@@ -40,7 +42,7 @@ fn print_stats(name: &str, mut durations: Vec<std::time::Duration>, count: usize
 #[tokio::main]
 async fn main() {
     println!("Starting nx9-auth microbenchmarks...");
-    let (pool, db_path) = setup_bench_db().await;
+    let (provider, db_path) = setup_bench_db().await;
 
     // Production security config
     let sec_cfg = SecurityConfig {
@@ -64,7 +66,7 @@ async fn main() {
 
     // Create benchmark user
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &fast_sec_cfg,
         Tenant::DEFAULT_ID,
         "bench_user",
@@ -118,7 +120,7 @@ async fn main() {
     // 3. Session Validation Benchmark (BLAKE3 Hashing + SQLite)
     // ─────────────────────────────────────────────────────────────────────────
     let (_session, raw_token) = sessions::create_session(
-        &pool,
+        &provider,
         &user.id,
         Some("127.0.0.1"),
         Some("Bench Agent"),
@@ -132,7 +134,7 @@ async fn main() {
 
     for _ in 0..session_ops {
         let start = Instant::now();
-        let validated = sessions::validate_session(&pool, &raw_token, &fast_sec_cfg)
+        let validated = sessions::validate_session(&provider, &raw_token, &fast_sec_cfg)
             .await
             .unwrap();
         assert!(validated.is_some());
@@ -148,7 +150,7 @@ async fn main() {
     // 4. Personal Access Token (PAT) Verification Benchmark (BLAKE3 + SQLite)
     // ─────────────────────────────────────────────────────────────────────────
     let (_token, raw_pat) = tokens::create_token(
-        &pool,
+        &provider,
         &user.id,
         "bench-pat",
         &fast_sec_cfg,
@@ -164,7 +166,7 @@ async fn main() {
 
     for _ in 0..pat_ops {
         let start = Instant::now();
-        let validated = tokens::validate_token(&pool, &raw_pat).await.unwrap();
+        let validated = tokens::validate_token(&provider, &raw_pat).await.unwrap();
         assert!(validated.is_some());
         pat_durations.push(start.elapsed());
     }

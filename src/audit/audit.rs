@@ -1,7 +1,4 @@
-use crate::{
-    db::{models::AuditSeverity, repository::audit as repo},
-    error::AppError,
-};
+use crate::db::models::AuditSeverity;
 
 /// A structured audit event to be persisted and logged.
 #[derive(Debug)]
@@ -41,44 +38,4 @@ impl<'a> AuditEvent<'a> {
             metadata: None,
         }
     }
-}
-
-/// Persist an audit event to the database and emit a structured log line.
-///
-/// This function is intentionally fire-and-forget — a failure to write an
-/// audit log must never break an otherwise successful operation.
-pub async fn log(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    event: AuditEvent<'_>,
-) -> Result<(), AppError> {
-    let id = uuid::Uuid::new_v4().to_string();
-
-    tracing::info!(
-        event = "audit",
-        action = event.action,
-        resource_type = event.resource_type,
-        resource_id = event.resource_id,
-        severity = event.severity.as_str(),
-        actor_id = event.actor_id,
-        target_id = event.target_id,
-        ip = event.ip,
-    );
-
-    repo::insert(
-        tx,
-        &id,
-        event.actor_id,
-        event.target_id,
-        event.action,
-        event.resource_type,
-        event.resource_id,
-        event.severity.as_str(),
-        event.ip,
-        event.ua,
-        event.metadata,
-    )
-    .await
-    .map_err(AppError::Database)?;
-
-    Ok(())
 }

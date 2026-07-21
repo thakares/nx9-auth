@@ -60,7 +60,7 @@ pub async fn create_token(
     }
 
     let (token, raw) = token_security::create_token(
-        &state.pool,
+        &state.provider,
         &auth.user.id,
         &body.name,
         &state.config.security,
@@ -88,7 +88,7 @@ pub async fn create_token(
 
 /// List the authenticated user's own tokens.
 pub async fn list_tokens(State(state): State<AppState>, auth: AuthUser) -> Result<Json<Value>> {
-    let tokens = token_repo::list_for_user(&state.pool, &auth.user.id)
+    let tokens = token_repo::list_for_user(&state.provider, &auth.user.id)
         .await
         .map_err(AppError::Database)?;
 
@@ -105,18 +105,18 @@ pub async fn revoke_token(
     ctx: AuditContext,
     Path(id): Path<String>,
 ) -> Result<Json<Value>> {
-    let token = token_repo::find_by_id(&state.pool, &id)
+    let token = token_repo::find_by_id(&state.provider, &id)
         .await
         .map_err(AppError::Database)?
         .ok_or(AppError::NotFound)?;
 
     // Must be owner or have tokens:revoke permission
     if token.user_id != auth.user.id {
-        require(&state.pool, &auth.user.id, "tokens:revoke").await?;
+        require(&state.provider, &auth.user.id, "tokens:revoke").await?;
     }
 
     token_security::revoke_token(
-        &state.pool,
+        &state.provider,
         &id,
         Some(&auth.user.id),
         ctx.ip_address.as_deref(),

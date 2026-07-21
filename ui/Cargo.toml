@@ -1,0 +1,25 @@
+[package]
+name = "nx9-auth-ui"
+version = "0.1.0"
+edition = "2021"
+authors = ["NX9 Team", "Sunil Thakare"]
+description = "Dioxus web UI for nx9-auth IAM"
+license = "Apache-2.0 OR MIT"
+publish = false
+
+[dependencies]
+dioxus = { version = "0.6", features = ["web", "router"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# json only — browser handles cookies via fetch_credentials_include()
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+gloo-storage = "0.3"
+gloo-timers = { version = "0.3", features = ["futures"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", features = ["Window", "Document", "HtmlElement", "Navigator", "Clipboard"] }
+js-sys = "0.3"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "wasmbind"] }
+futures = "0.3"
+

@@ -156,13 +156,13 @@ async fn test_cli_init_non_interactive() {
 
     // Verify admin user is created in database
     let pool = nx9_auth::db::create_pool(db_path).await.unwrap();
-    let admin_exists = nx9_auth::db::repository::users::username_exists(
-        &pool,
-        nx9_auth::db::models::Tenant::DEFAULT_ID,
-        "init_admin",
-    )
-    .await
-    .unwrap();
+    let provider: std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider> =
+        std::sync::Arc::new(nx9_auth::db::provider::SqliteProvider::new(pool.clone()));
+    let admin_exists = provider
+        .users()
+        .username_exists(nx9_auth::db::models::Tenant::DEFAULT_ID, "init_admin")
+        .await
+        .unwrap();
     assert!(admin_exists);
 
     // Clean up
@@ -199,9 +199,9 @@ async fn test_cli_init_skip_admin() {
 
     // Verify no admin users exist
     let pool = nx9_auth::db::create_pool(db_path).await.unwrap();
-    let admin_count = nx9_auth::db::repository::users::count_admins(&pool)
-        .await
-        .unwrap();
+    let provider: std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider> =
+        std::sync::Arc::new(nx9_auth::db::provider::SqliteProvider::new(pool));
+    let admin_count = provider.users().count_admins().await.unwrap();
     assert_eq!(admin_count, 0);
 
     // Clean up
@@ -219,9 +219,11 @@ async fn test_cli_show_user_and_token() {
     // 1. Init DB and seed user
     let pool = nx9_auth::db::create_pool(db_path).await.unwrap();
     nx9_auth::db::run_migrations(&pool).await.unwrap();
+    let provider: std::sync::Arc<dyn nx9_auth::db::provider::DatabaseProvider> =
+        std::sync::Arc::new(nx9_auth::db::provider::SqliteProvider::new(pool));
 
     let user = nx9_auth::identity::users::create_user(
-        &pool,
+        &provider,
         &config.security,
         nx9_auth::db::models::Tenant::DEFAULT_ID,
         "show_test_user",
@@ -234,13 +236,13 @@ async fn test_cli_show_user_and_token() {
     .unwrap();
 
     // Assign role
-    nx9_auth::identity::roles::assign_role(&pool, &user.id, "viewer", None, None, None)
+    nx9_auth::identity::roles::assign_role(&provider, &user.id, "viewer", None, None, None)
         .await
         .unwrap();
 
     // Create a token
     let (token, _raw) = nx9_auth::security::tokens::create_token(
-        &pool,
+        &provider,
         &user.id,
         "test-token",
         &config.security,

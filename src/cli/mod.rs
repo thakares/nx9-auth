@@ -5,22 +5,35 @@ use clap::{Parser, Subcommand};
 
 use crate::{
     config::Config,
-    db::repository::{roles as role_repo, users as user_repo},
     db::{
         self,
-        models::{Tenant, UserStatus},
+        models::{Tenant, User, UserStatus},
     },
     error::AppError,
-    identity::{roles, users as identity_users},
+    identity::users as identity_users,
     security::tokens as token_security,
 };
+
+/// Resolve a user by ID or username (username lookup is case-sensitive, as stored).
+async fn resolve_user(
+    provider: &std::sync::Arc<dyn crate::db::provider::DatabaseProvider>,
+    id_or_username: &str,
+) -> anyhow::Result<User> {
+    if let Some(user) = provider.users().find_by_id(id_or_username).await? {
+        return Ok(user);
+    }
+    if let Some(user) = provider.users().find_by_username(id_or_username).await? {
+        return Ok(user);
+    }
+    anyhow::bail!("User not found: '{id_or_username}' (use ID or username)");
+}
 
 // ── CLI Definition ────────────────────────────────────────────────────────────
 
 #[derive(Parser)]
 #[command(
     name = "nx9-auth",
-    about = "NX9 Identity and Access Management service",
+    about = "nx9-auth \u{2014} Self-hosted Identity & Access Management",
     version = env!("CARGO_PKG_VERSION"),
     author,
 )]
@@ -39,7 +52,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Start the HTTP server.
+    /// Start the HTTP server (API + Admin UI).
     Serve,
 
     /// Run pending database migrations.
@@ -48,42 +61,42 @@ pub enum Commands {
     /// Check system health and configuration.
     Doctor,
 
-    /// Create an administrator user.
+    /// Create the initial administrator account.
     CreateAdmin {
         /// Username for the new admin account.
         username: String,
     },
 
-    /// Create a standard user.
+    /// Create a new user account.
     CreateUser {
         /// Username for the new user account.
         username: String,
     },
 
-    /// List all users in the system.
+    /// List all users.
     ListUsers,
 
-    /// Disable a user account (sets status = disabled).
+    /// Disable a user account.
     DisableUser {
-        /// User ID to disable.
-        id: String,
+        /// User ID or username to disable.
+        id_or_username: String,
     },
 
-    /// Enable a user account (sets status = active).
+    /// Enable a user account.
     EnableUser {
-        /// User ID to enable.
-        id: String,
+        /// User ID or username to enable.
+        id_or_username: String,
     },
 
     /// Reset a user's password.
     ResetPassword {
-        /// User ID to reset.
-        id: String,
+        /// User ID or username to reset.
+        id_or_username: String,
     },
 
     /// Create a personal access token for a user.
     CreateToken {
-        /// User ID to create the token for.
+        /// User ID or username to create the token for.
         #[arg(long)]
         user: String,
         /// Descriptive name for the token.
@@ -97,7 +110,7 @@ pub enum Commands {
         id: String,
     },
 
-    /// Initialize the configuration, directories, database and admin user.
+    /// Initialize config, database, and admin user.
     Init {
         /// Run in non-interactive mode.
         #[arg(long)]
@@ -120,7 +133,7 @@ pub enum Commands {
         admin_password: Option<String>,
     },
 
-    /// Print configuration and database file paths.
+    /// Show configuration and database paths.
     ConfigPath {
         /// Output in machine-readable JSON format.
         #[arg(long)]
@@ -192,9 +205,15 @@ pub async fn run(command: Commands, config: Config) -> anyhow::Result<()> {
         Commands::CreateUser { username } => cmd_create_user(&config, &username).await,
         Commands::ListUsers => cmd_list_users(&config).await,
 
-        Commands::DisableUser { id } => cmd_set_status(&config, &id, UserStatus::Disabled).await,
-        Commands::EnableUser { id } => cmd_set_status(&config, &id, UserStatus::Active).await,
-        Commands::ResetPassword { id } => cmd_reset_password(&config, &id).await,
+        Commands::DisableUser { id_or_username } => {
+            cmd_set_status(&config, &id_or_username, UserStatus::Disabled).await
+        }
+        Commands::EnableUser { id_or_username } => {
+            cmd_set_status(&config, &id_or_username, UserStatus::Active).await
+        }
+        Commands::ResetPassword { id_or_username } => {
+            cmd_reset_password(&config, &id_or_username).await
+        }
 
         Commands::CreateToken { user, name } => cmd_create_token(&config, &user, &name).await,
         Commands::RevokeToken { id } => cmd_revoke_token(&config, &id).await,
@@ -236,6 +255,19 @@ async fn cmd_migrate(config: &Config) -> anyhow::Result<()> {
 }
 
 // ── doctor ────────────────────────────────────────────────────────────────────
+
+fn make_provider(
+    pool: sqlx::SqlitePool,
+) -> std::sync::Arc<dyn crate::db::provider::DatabaseProvider> {
+    #[cfg(feature = "sqlite")]
+    {
+        std::sync::Arc::new(crate::db::provider::SqliteProvider::new(pool))
+    }
+    #[cfg(all(feature = "postgres", not(feature = "sqlite")))]
+    {
+        std::sync::Arc::new(crate::db::provider::PostgresProvider::new(pool))
+    }
+}
 
 async fn run_doctor_checks(config: &Config) -> anyhow::Result<bool> {
     let mut ok = true;
@@ -294,6 +326,8 @@ async fn run_doctor_checks(config: &Config) -> anyhow::Result<bool> {
         }
     };
 
+    let provider = make_provider(pool.clone());
+
     // 4. Migrations are up to date
     // Verify migrations are applied
     let migration_check: Result<(i64,), sqlx::Error> =
@@ -327,7 +361,7 @@ async fn run_doctor_checks(config: &Config) -> anyhow::Result<bool> {
     }
 
     // 6. Admin role exists
-    match role_repo::admin_role_exists(&pool).await {
+    match provider.roles().admin_role_exists().await {
         Ok(true) => println!("  ✓  admin role exists"),
         Ok(false) => {
             println!("  ✗  admin role missing — run `nx9-auth migrate`");
@@ -340,7 +374,7 @@ async fn run_doctor_checks(config: &Config) -> anyhow::Result<bool> {
     }
 
     // 7. At least one admin user exists
-    match user_repo::count_admins(&pool).await {
+    match provider.users().count_admins().await {
         Ok(n) if n > 0 => println!("  ✓  {} admin user(s) exist", n),
         Ok(_) => {
             println!("  ✗  No admin users — run `nx9-auth create-admin <username>`");
@@ -417,7 +451,6 @@ async fn run_doctor_checks(config: &Config) -> anyhow::Result<bool> {
         sqlx::query("DROP TABLE doctor_test_write")
             .execute(&mut *tx)
             .await?;
-        tx.commit().await?;
         Ok(())
     }
     .await;
@@ -471,10 +504,12 @@ async fn cmd_doctor(config: &Config) -> anyhow::Result<()> {
 
 async fn cmd_create_admin(config: &Config, username: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
+    let provider = make_provider(pool);
+
     let password = prompt_password_confirmed("Password for admin: ", true)?;
 
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         username,
@@ -485,7 +520,7 @@ async fn cmd_create_admin(config: &Config, username: &str) -> anyhow::Result<()>
     )
     .await?;
 
-    roles::assign_role(&pool, &user.id, "admin", None, None, None).await?;
+    crate::identity::roles::assign_role(&provider, &user.id, "admin", None, None, None).await?;
 
     println!("✓ Admin user '{}' created (id: {})", user.username, user.id);
     Ok(())
@@ -495,10 +530,12 @@ async fn cmd_create_admin(config: &Config, username: &str) -> anyhow::Result<()>
 
 async fn cmd_create_user(config: &Config, username: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
+    let provider = make_provider(pool);
+
     let password = prompt_password_confirmed("Password: ", false)?;
 
     let user = identity_users::create_user(
-        &pool,
+        &provider,
         &config.security,
         Tenant::DEFAULT_ID,
         username,
@@ -517,7 +554,9 @@ async fn cmd_create_user(config: &Config, username: &str) -> anyhow::Result<()> 
 
 async fn cmd_list_users(config: &Config) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
-    let users = identity_users::list_users(&pool, Tenant::DEFAULT_ID).await?;
+    let provider = make_provider(pool);
+
+    let users = provider.users().list(Tenant::DEFAULT_ID).await?;
 
     if users.is_empty() {
         println!("No users found.");
@@ -546,10 +585,16 @@ async fn cmd_list_users(config: &Config) -> anyhow::Result<()> {
 
 // ── disable/enable-user ───────────────────────────────────────────────────────
 
-async fn cmd_set_status(config: &Config, id: &str, status: UserStatus) -> anyhow::Result<()> {
+async fn cmd_set_status(
+    config: &Config,
+    id_or_username: &str,
+    status: UserStatus,
+) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
-    let user = identity_users::get_user(&pool, id).await?;
-    identity_users::update_status(&pool, id, status.as_i32(), None, None, None).await?;
+    let provider = make_provider(pool);
+
+    let user = resolve_user(&provider, id_or_username).await?;
+    identity_users::update_status(&provider, &user.id, status.as_i32(), None, None, None).await?;
     println!(
         "✓ User '{}' status set to {}",
         user.username,
@@ -560,27 +605,46 @@ async fn cmd_set_status(config: &Config, id: &str, status: UserStatus) -> anyhow
 
 // ── reset-password ────────────────────────────────────────────────────────────
 
-async fn cmd_reset_password(config: &Config, id: &str) -> anyhow::Result<()> {
+async fn cmd_reset_password(config: &Config, id_or_username: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
-    let user = identity_users::get_user(&pool, id).await?;
-    let user_roles = role_repo::list_for_user(&pool, &user.id).await?;
+    let provider = make_provider(pool);
+
+    let user = resolve_user(&provider, id_or_username).await?;
+    let user_roles = provider.roles().list_for_user(&user.id).await?;
     let is_admin = user_roles.iter().any(|r| r.name == "admin");
     let password =
         prompt_password_confirmed(&format!("New password for '{}': ", user.username), is_admin)?;
-    identity_users::reset_password(&pool, &config.security, id, &password, None, None, None)
-        .await?;
+    identity_users::reset_password(
+        &provider,
+        &config.security,
+        &user.id,
+        &password,
+        None,
+        None,
+        None,
+    )
+    .await?;
     println!("✓ Password reset for user '{}'", user.username);
     Ok(())
 }
 
 // ── create-token ──────────────────────────────────────────────────────────────
 
-async fn cmd_create_token(config: &Config, user_id: &str, name: &str) -> anyhow::Result<()> {
+async fn cmd_create_token(config: &Config, user_ref: &str, name: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
-    let user = identity_users::get_user(&pool, user_id).await?;
-    let (token, raw) =
-        token_security::create_token(&pool, user_id, name, &config.security, None, None, None)
-            .await?;
+    let provider = make_provider(pool);
+
+    let user = resolve_user(&provider, user_ref).await?;
+    let (token, raw) = token_security::create_token(
+        &provider,
+        &user.id,
+        name,
+        &config.security,
+        None,
+        None,
+        None,
+    )
+    .await?;
 
     println!(
         "\nPersonal Access Token created for user '{}':",
@@ -604,13 +668,16 @@ async fn cmd_create_token(config: &Config, user_id: &str, name: &str) -> anyhow:
 
 async fn cmd_revoke_token(config: &Config, id: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
+    let provider = make_provider(pool);
 
-    let token = crate::db::repository::tokens::find_by_id(&pool, id)
+    let token = provider
+        .tokens()
+        .find_by_id(id)
         .await
         .map_err(AppError::Database)?
         .ok_or_else(|| anyhow::anyhow!("token not found: {}", id))?;
 
-    crate::security::tokens::revoke_token(&pool, id, None, None, None).await?;
+    token_security::revoke_token(&provider, id, None, None, None).await?;
 
     println!("✓ Token '{}' (id: {}) revoked", token.name, token.id);
     Ok(())
@@ -673,6 +740,8 @@ async fn cmd_init(
     // 2. Open DB pool and run migrations
     println!("Running migrations...");
     let pool = db::create_pool(&config.database.path).await?;
+    let provider = make_provider(pool.clone());
+
     db::run_migrations(&pool).await?;
     println!("✓ Migrations applied successfully.");
 
@@ -680,7 +749,7 @@ async fn cmd_init(
     if skip_admin {
         println!("ℹ Administrator creation skipped.");
     } else {
-        let admin_count = user_repo::count_admins(&pool).await?;
+        let admin_count = provider.users().count_admins().await?;
         if admin_count == 0 {
             let username: String;
             let password: String;
@@ -715,8 +784,8 @@ async fn cmd_init(
                 password = prompt_password_confirmed("Password: ", true)?;
             }
 
-            let user = crate::identity::users::create_user(
-                &pool,
+            let user = identity_users::create_user(
+                &provider,
                 &config.security,
                 Tenant::DEFAULT_ID,
                 &username,
@@ -727,7 +796,8 @@ async fn cmd_init(
             )
             .await?;
 
-            roles::assign_role(&pool, &user.id, "admin", None, None, None).await?;
+            crate::identity::roles::assign_role(&provider, &user.id, "admin", None, None, None)
+                .await?;
             println!("✓ Admin user '{}' created successfully.", username);
         } else {
             println!("✓ Administrator account already exists.");
@@ -735,13 +805,13 @@ async fn cmd_init(
     }
 
     // 4. Run post-install validation (relaxed)
-    println!("\nRunning validation...");
+    println!("\nValidation:");
     let init_ok = run_init_validation(config, skip_admin).await?;
     if !init_ok {
         anyhow::bail!("Post-installation validation checks failed!");
     }
 
-    println!("\nnx9-auth is ready.\n\nStart with:\n\n    nx9-auth serve\n");
+    println!("\nnx9-auth is ready.\n\nStart the server with:\n  nx9-auth serve\n");
     Ok(())
 }
 
@@ -749,7 +819,7 @@ async fn run_init_validation(config: &Config, admin_skipped: bool) -> anyhow::Re
     let mut ok = true;
 
     // 1. Config valid
-    println!("  ✓  Config valid");
+    println!("  ✓ Configuration");
 
     // 2. Directories writable
     let db_path = std::path::Path::new(&config.database.path);
@@ -766,20 +836,20 @@ async fn run_init_validation(config: &Config, admin_skipped: bool) -> anyhow::Re
         }
     }
     if dirs_ok {
-        println!("  ✓  Directories writable");
+        println!("  ✓ Directories");
     } else {
-        println!("  ✗  Directories not writable");
+        println!("  ✗ Directories not writable");
         ok = false;
     }
 
     // 3. Database reachable
     let pool = match db::create_pool(&config.database.path).await {
         Ok(p) => {
-            println!("  ✓  Database reachable");
+            println!("  ✓ Database");
             p
         }
         Err(e) => {
-            println!("  ✗  Database connection failed: {}", e);
+            println!("  ✗ Database connection failed: {}", e);
             return Ok(false);
         }
     };
@@ -790,21 +860,22 @@ async fn run_init_validation(config: &Config, admin_skipped: bool) -> anyhow::Re
             .fetch_one(&pool)
             .await;
     match migration_check {
-        Ok((count,)) if count > 0 => println!("  ✓  Migrations applied"),
+        Ok((count,)) if count > 0 => println!("  ✓ Migrations"),
         _ => {
-            println!("  ✗  Migrations not applied");
+            println!("  ✗ Migrations not applied");
             ok = false;
         }
     }
 
     // 5. Admin account check
-    let admin_count = user_repo::count_admins(&pool).await.unwrap_or(0);
+    let provider = make_provider(pool);
+    let admin_count = provider.users().count_admins().await.unwrap_or(0);
     if admin_count > 0 {
-        println!("  ✓  Administrator account exists");
+        println!("  ✓ Administrator account");
     } else if admin_skipped {
-        println!("  ℹ  Administrator creation skipped");
+        println!("  ℹ Administrator creation skipped");
     } else {
-        println!("  ✗  No administrator account exists");
+        println!("  ✗ No administrator account exists");
         ok = false;
     }
 
@@ -858,18 +929,11 @@ async fn cmd_show_user(
     permissions: bool,
 ) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
+    let provider = make_provider(pool);
 
-    let user = match user_repo::find_by_id(&pool, id_or_username).await? {
-        Some(u) => Some(u),
-        None => user_repo::find_by_username(&pool, id_or_username).await?,
-    };
+    let user = resolve_user(&provider, id_or_username).await?;
 
-    let user = match user {
-        Some(u) => u,
-        None => anyhow::bail!("User not found: '{}'", id_or_username),
-    };
-
-    let user_roles = role_repo::list_for_user(&pool, &user.id).await?;
+    let user_roles = provider.roles().list_for_user(&user.id).await?;
     let role_names: Vec<String> = user_roles.into_iter().map(|r| r.name).collect();
 
     println!("\nUser");
@@ -897,7 +961,7 @@ async fn cmd_show_user(
         println!("\nPermissions");
         println!("───────────");
 
-        let user_perms = crate::db::repository::permissions::list_for_user(&pool, &user.id).await?;
+        let user_perms = provider.permissions().list_for_user(&user.id).await?;
         if user_perms.is_empty() {
             println!("none");
         } else {
@@ -915,12 +979,16 @@ async fn cmd_show_user(
 
 async fn cmd_show_token(config: &Config, id: &str) -> anyhow::Result<()> {
     let pool = db::create_pool(&config.database.path).await?;
-    let token = crate::db::repository::tokens::find_by_id(&pool, id)
+    let provider = make_provider(pool);
+
+    let token = provider
+        .tokens()
+        .find_by_id(id)
         .await
         .map_err(AppError::Database)?
         .ok_or_else(|| anyhow::anyhow!("Token not found: {}", id))?;
 
-    let user = user_repo::find_by_id(&pool, &token.user_id).await?;
+    let user = provider.users().find_by_id(&token.user_id).await?;
     let username = user
         .map(|u| u.username)
         .unwrap_or_else(|| "unknown".to_string());
@@ -1005,6 +1073,7 @@ async fn cmd_backup(config: &Config, path: &std::path::Path) -> anyhow::Result<(
     // for transactionally consistent online backups. It is the modern
     // SQL alternative to the online backup C API, especially on WAL-enabled databases.
     let pool = db::create_pool(&config.database.path).await?;
+
     let path_str = path.to_string_lossy().replace('\'', "''");
     let query = format!("VACUUM INTO '{}'", path_str);
 

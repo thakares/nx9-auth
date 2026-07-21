@@ -27,6 +27,17 @@ pub struct ServerConfig {
     pub host: String,
     /// Port to listen on.
     pub port: u16,
+    /// Whether the session cookie should set the `Secure` flag.
+    ///
+    /// Must be `true` when the UI is served over HTTPS (or behind a TLS
+    /// reverse proxy). Leave `false` for plain-HTTP self-hosted installs —
+    /// browsers reject `Secure` cookies on `http://` and authentication breaks.
+    #[serde(default)]
+    pub cookie_secure: bool,
+    /// Production mode: enables HSTS, requires secure cookies, and refuses
+    /// known-insecure bind configurations.
+    #[serde(default)]
+    pub production: bool,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -64,7 +75,29 @@ impl Default for ServerConfig {
         Self {
             host: "127.0.0.1".to_string(), // Default to loopback for user mode safety
             port: 8655,
+            // Safe default for local/self-hosted HTTP. Enable for HTTPS production.
+            cookie_secure: false,
+            production: false,
         }
+    }
+}
+
+impl ServerConfig {
+    /// Refuse insecure production deployments.
+    ///
+    /// TLS is typically terminated at a reverse proxy; this enforces that
+    /// cookies/HSTS are configured as if the external surface is HTTPS.
+    pub fn validate_production_security(&self) -> anyhow::Result<()> {
+        if !self.production {
+            return Ok(());
+        }
+        if !self.cookie_secure {
+            anyhow::bail!(
+                "production mode requires server.cookie_secure = true \
+                 (session cookies must be Secure for HTTPS deployments)"
+            );
+        }
+        Ok(())
     }
 }
 
@@ -214,6 +247,10 @@ impl Config {
 # Interface to bind on. Use 127.0.0.1 for local/user mode.
 host = "127.0.0.1"
 port = 8655
+# Session cookie Secure flag (true only when serving over HTTPS).
+cookie_secure = false
+# Production mode: requires cookie_secure and enables HSTS.
+production = false
 
 [database]
 # Absolute or home-relative path to the SQLite database file.
@@ -248,6 +285,8 @@ mod tests {
         let cfg = Config::default();
         assert_eq!(cfg.server.port, 8655);
         assert_eq!(cfg.server.host, "127.0.0.1");
+        assert!(!cfg.server.cookie_secure);
+        assert!(!cfg.server.production);
         if std::env::var("HOME").is_ok() {
             assert!(cfg.database.path.contains(".local/share/nx9-auth/auth.db"));
         } else {

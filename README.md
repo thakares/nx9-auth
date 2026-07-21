@@ -18,6 +18,7 @@ Built with Rust, Axum, SQLite, and modern security practices, `nx9-auth` provide
 * Docker and CasaOS support
 * Systemd deployment support
 * XDG-compliant user mode
+* **Dioxus enterprise web UI** (single binary, no Node.js)
 
 ## Quick Start
 
@@ -38,6 +39,50 @@ Verify health:
 ```bash
 curl http://127.0.0.1:8655/health
 ```
+
+Open the UI in a browser:
+
+```text
+http://127.0.0.1:8655/
+```
+
+## Authentication
+
+Login is **POST-only** with a JSON body (never query parameters):
+
+```bash
+curl -sS -X POST http://127.0.0.1:8655/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"your-password"}'
+```
+
+Passwords are verified with **Argon2id** and never logged or stored in plaintext.
+See [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md) for the full security model.
+
+## Web UI
+
+The management UI is implemented in pure Rust with **Dioxus** (no React/Vue/Node).
+It is served from the same process as the REST API.
+
+### Build UI assets
+
+```bash
+./scripts/build-ui.sh
+```
+
+This compiles `ui/` to WebAssembly and writes static files to `ui/dist/`.
+The server serves those files automatically (override path with `NX9_AUTH_UI_DIST`).
+
+### UI features
+
+* Login / logout with session restoration
+* Permission-aware sidebar and routing
+* User, role, permission, token, application, and service-account management
+* Audit log viewer with filters
+* Profile and settings (theme: light / dark / system)
+* Responsive enterprise shell (header, sidebar, breadcrumbs, toasts)
+
+Frontend RBAC is presentation-only; the backend remains authoritative.
 
 ## CLI Commands
 

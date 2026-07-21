@@ -1,74 +1,21 @@
-use sqlx::SqlitePool;
+pub use crate::db::repository::sqlite::tokens::*;
 
 use crate::db::models::ApiToken;
+use crate::db::provider::DatabaseProvider;
+use std::sync::Arc;
 
-pub async fn create(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
-    id: &str,
+/// List tokens for a user using the provided DatabaseProvider.
+pub async fn list_for_user(
+    provider: &Arc<dyn DatabaseProvider>,
     user_id: &str,
-    name: &str,
-    token_hash: &str,
-    expires_at: Option<&str>,
-) -> Result<ApiToken, sqlx::Error> {
-    sqlx::query_as::<_, ApiToken>(
-        r#"
-        INSERT INTO api_tokens (id, user_id, name, token_hash, expires_at)
-        VALUES (?, ?, ?, ?, ?)
-        RETURNING *
-        "#,
-    )
-    .bind(id)
-    .bind(user_id)
-    .bind(name)
-    .bind(token_hash)
-    .bind(expires_at)
-    .fetch_one(&mut **tx)
-    .await
+) -> Result<Vec<ApiToken>, sqlx::Error> {
+    provider.tokens().list_for_user(user_id).await
 }
 
-pub async fn find_by_hash(
-    pool: &SqlitePool,
-    token_hash: &str,
-) -> Result<Option<ApiToken>, sqlx::Error> {
-    sqlx::query_as::<_, ApiToken>("SELECT * FROM api_tokens WHERE token_hash = ? AND revoked = 0")
-        .bind(token_hash)
-        .fetch_optional(pool)
-        .await
-}
-
-pub async fn list_for_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<ApiToken>, sqlx::Error> {
-    sqlx::query_as::<_, ApiToken>(
-        "SELECT * FROM api_tokens WHERE user_id = ? ORDER BY created_at DESC",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await
-}
-
-pub async fn find_by_id(pool: &SqlitePool, id: &str) -> Result<Option<ApiToken>, sqlx::Error> {
-    sqlx::query_as::<_, ApiToken>("SELECT * FROM api_tokens WHERE id = ?")
-        .bind(id)
-        .fetch_optional(pool)
-        .await
-}
-
-pub async fn revoke(
-    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+/// Find a token by its ID using the provided DatabaseProvider.
+pub async fn find_by_id(
+    provider: &Arc<dyn DatabaseProvider>,
     id: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE api_tokens SET revoked = 1 WHERE id = ?")
-        .bind(id)
-        .execute(&mut **tx)
-        .await?;
-    Ok(())
-}
-
-pub async fn update_last_used(pool: &SqlitePool, id: &str) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE api_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
-    )
-    .bind(id)
-    .execute(pool)
-    .await?;
-    Ok(())
+) -> Result<Option<ApiToken>, sqlx::Error> {
+    provider.tokens().find_by_id(id).await
 }

@@ -43,6 +43,7 @@ impl std::fmt::Display for UserStatus {
 /// A user account row from the `users` table.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
+    pub slug: Option<String>,
     pub id: String,
     pub tenant_id: String,
     pub username: String,

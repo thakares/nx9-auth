@@ -1,6 +1,17 @@
+pub mod applications;
+pub mod audit;
 pub mod auth;
+pub mod dashboard;
+pub mod groups;
 pub mod health;
+pub mod permissions;
+pub mod profile;
+pub mod roles;
 pub mod router;
+pub mod service_accounts;
+pub mod sessions;
+pub mod tenants;
 pub mod tokens;
+pub mod ui;
 pub mod users;
 pub mod version;

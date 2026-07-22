@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::{
-    db::models::AuditLog,
-    db::repository::audit::{self as audit_repo, AuditFilter},
+    db::models::{AuditFilter, AuditLog},
+    db::repository::audit as audit_repo,
     error::{AppError, Result},
     middleware::{auth::AuthUser, permissions::require},
     state::AppState,

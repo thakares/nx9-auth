@@ -2,13 +2,11 @@ use crate::db::repository::traits::AuditRepository;
 use async_trait::async_trait;
 use sqlx::PgPool;
 
-use crate::db::models::AuditLog;
+use crate::db::models::{AuditFilter, AuditLog};
 
 pub struct PostgresAuditRepository {
     pub pool: PgPool,
 }
-
-use crate::db::repository::sqlite::audit::AuditFilter;
 
 #[async_trait]
 impl AuditRepository for PostgresAuditRepository {
@@ -76,22 +74,22 @@ impl AuditRepository for PostgresAuditRepository {
         sqlx::query_as::<_, AuditLog>(
             r#"
         SELECT * FROM audit_logs
-        WHERE ($11 IS NULL OR actor_user_id = $21)
-          AND ($32 IS NULL OR action = $42)
-          AND ($53 IS NULL OR resource_type = $63)
-          AND ($74 IS NULL OR severity = $84)
-          AND ($95 IS NULL OR created_at >= $105)
-          AND ($116 IS NULL OR created_at <= $126)
+        WHERE ($1::text IS NULL OR actor_user_id = $1)
+          AND ($2::text IS NULL OR action = $2)
+          AND ($3::text IS NULL OR resource_type = $3)
+          AND ($4::text IS NULL OR severity = $4)
+          AND ($5::text IS NULL OR created_at >= $5)
+          AND ($6::text IS NULL OR created_at <= $6)
           AND (
-                $137 IS NULL
-             OR action LIKE $147 ESCAPE '\'
-             OR resource_type LIKE $157 ESCAPE '\'
-             OR resource_id LIKE $167 ESCAPE '\'
-             OR ip_address LIKE $177 ESCAPE '\'
-             OR metadata_json LIKE $187 ESCAPE '\'
+                $7::text IS NULL
+             OR action LIKE $7 ESCAPE '\'
+             OR resource_type LIKE $7 ESCAPE '\'
+             OR resource_id LIKE $7 ESCAPE '\'
+             OR ip_address LIKE $7 ESCAPE '\'
+             OR metadata_json LIKE $7 ESCAPE '\'
           )
         ORDER BY created_at DESC
-        LIMIT $198 OFFSET $209
+        LIMIT $8 OFFSET $9
         "#,
         )
         .bind(filter.actor_user_id.as_deref())
@@ -116,19 +114,19 @@ impl AuditRepository for PostgresAuditRepository {
         let row: (i64,) = sqlx::query_as(
             r#"
         SELECT COUNT(*) FROM audit_logs
-        WHERE ($11 IS NULL OR actor_user_id = $21)
-          AND ($32 IS NULL OR action = $42)
-          AND ($53 IS NULL OR resource_type = $63)
-          AND ($74 IS NULL OR severity = $84)
-          AND ($95 IS NULL OR created_at >= $105)
-          AND ($116 IS NULL OR created_at <= $126)
+        WHERE ($1::text IS NULL OR actor_user_id = $1)
+          AND ($2::text IS NULL OR action = $2)
+          AND ($3::text IS NULL OR resource_type = $3)
+          AND ($4::text IS NULL OR severity = $4)
+          AND ($5::text IS NULL OR created_at >= $5)
+          AND ($6::text IS NULL OR created_at <= $6)
           AND (
-                $137 IS NULL
-             OR action LIKE $147 ESCAPE '\'
-             OR resource_type LIKE $157 ESCAPE '\'
-             OR resource_id LIKE $167 ESCAPE '\'
-             OR ip_address LIKE $177 ESCAPE '\'
-             OR metadata_json LIKE $187 ESCAPE '\'
+                $7::text IS NULL
+             OR action LIKE $7 ESCAPE '\'
+             OR resource_type LIKE $7 ESCAPE '\'
+             OR resource_id LIKE $7 ESCAPE '\'
+             OR ip_address LIKE $7 ESCAPE '\'
+             OR metadata_json LIKE $7 ESCAPE '\'
           )
         "#,
         )

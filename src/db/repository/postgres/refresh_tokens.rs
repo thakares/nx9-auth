@@ -6,7 +6,7 @@ pub struct PostgresRefreshTokensRepository {
     pub pool: PgPool,
 }
 
-use crate::db::repository::sqlite::refresh_tokens::RefreshToken;
+use crate::db::models::RefreshToken;
 
 #[async_trait]
 impl RefreshTokensRepository for PostgresRefreshTokensRepository {

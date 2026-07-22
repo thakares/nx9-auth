@@ -1,3 +1,5 @@
+#![cfg(feature = "sqlite")]
+
 //! Authentication security tests (OWASP-oriented).
 
 use axum::{
@@ -66,7 +68,7 @@ async fn test_login_is_post_only() {
     let (state, db_path) = setup().await;
     let app = api::router::build(state);
 
-    // GET must not authenticate and must not be a login handler (405 or 404).
+    // 1. GET /api/v1/auth/login must return METHOD_NOT_ALLOWED (405).
     let res = app
         .clone()
         .oneshot(
@@ -78,13 +80,22 @@ async fn test_login_is_post_only() {
         )
         .await
         .unwrap();
-    assert!(
-        res.status() == StatusCode::METHOD_NOT_ALLOWED
-            || res.status() == StatusCode::NOT_FOUND
-            || res.status() == StatusCode::UNAUTHORIZED,
-        "GET login must not succeed: {}",
-        res.status()
-    );
+    assert_eq!(res.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    // 2. GET /login?username=...&password=... must be sanitized with HTTP 303 See Other redirecting to /login without credentials.
+    let res_spa = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/login?username=sec_admin&password=super_secure_admin_passphrase_123")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_spa.status(), StatusCode::SEE_OTHER);
+    assert_eq!(res_spa.headers().get(header::LOCATION).unwrap(), "/login");
 
     // POST with JSON succeeds and returns access_token.
     let res = app

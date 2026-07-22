@@ -1,3 +1,5 @@
+#![cfg(feature = "sqlite")]
+
 use nx9_auth::cli::{Commands, run};
 use nx9_auth::config::Config;
 use std::fs;
@@ -18,11 +20,14 @@ async fn test_path_expansion() {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/home/user".to_string());
 
     let mut config = Config::default();
-    config.database.path = "~/test_subdir/test.db".to_string();
+    config.database.path = Some("~/test_subdir/test.db".to_string());
     config.resolve_paths();
 
     let expected = Path::new(&home).join("test_subdir/test.db");
-    assert_eq!(config.database.path, expected.to_string_lossy().to_string());
+    assert_eq!(
+        config.database.sqlite_path(),
+        expected.to_string_lossy().to_string()
+    );
 }
 
 #[tokio::test]
@@ -31,7 +36,7 @@ async fn test_backup_validation_and_integrity() {
     setup_test_db(db_path);
 
     let mut config = Config::default();
-    config.database.path = db_path.to_string();
+    config.database.path = Some(db_path.to_string());
 
     // 1. Initialize DB and run migrations
     let pool = nx9_auth::db::create_pool(db_path).await.unwrap();
@@ -114,7 +119,7 @@ async fn test_backup_validation_and_integrity() {
 #[tokio::test]
 async fn test_cli_config_path_json() {
     let mut config = Config::default();
-    config.database.path = "test.db".to_string();
+    config.database.path = Some("test.db".to_string());
 
     let res = run(Commands::ConfigPath { json: true }, config.clone()).await;
     assert!(res.is_ok());
@@ -131,7 +136,7 @@ async fn test_cli_init_non_interactive() {
     let _ = fs::remove_file(db_path);
 
     let mut config = Config::default();
-    config.database.path = db_path.to_string();
+    config.database.path = Some(db_path.to_string());
 
     // Run init command in non-interactive mode
     let res = run(
@@ -177,7 +182,7 @@ async fn test_cli_init_skip_admin() {
     let _ = fs::remove_file(db_path);
 
     let mut config = Config::default();
-    config.database.path = db_path.to_string();
+    config.database.path = Some(db_path.to_string());
 
     // Run init command with skip_admin
     let res = run(
@@ -214,7 +219,7 @@ async fn test_cli_show_user_and_token() {
     setup_test_db(db_path);
 
     let mut config = Config::default();
-    config.database.path = db_path.to_string();
+    config.database.path = Some(db_path.to_string());
 
     // 1. Init DB and seed user
     let pool = nx9_auth::db::create_pool(db_path).await.unwrap();

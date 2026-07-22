@@ -57,6 +57,16 @@ pub struct User {
     pub updated_at: String,
 }
 
+/// User profile fields from `user_profiles`.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct UserProfile {
+    pub user_id: String,
+    pub email: Option<String>,
+    pub full_name: Option<String>,
+    pub avatar_url: Option<String>,
+    pub metadata_json: Option<String>,
+}
+
 impl User {
     /// Typed status accessor.
     pub fn status(&self) -> UserStatus {

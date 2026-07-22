@@ -74,12 +74,14 @@ impl BootstrapState {
             .unwrap_or(false)
     }
 
+    #[allow(dead_code)]
     pub fn has_any_permission(&self, perms: &[&str]) -> bool {
         self.me()
             .map(|m| perms.iter().any(|p| m.permissions.iter().any(|x| x == p)))
             .unwrap_or(false)
     }
 
+    #[allow(dead_code)]
     pub fn is_adminish(&self) -> bool {
         self.has_any_permission(&[
             "roles:manage",

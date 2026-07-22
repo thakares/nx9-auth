@@ -19,6 +19,9 @@ pub struct Config {
 
     #[serde(default)]
     pub audit: AuditConfig,
+
+    #[serde(default)]
+    pub shutdown: ShutdownConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -40,10 +43,48 @@ pub struct ServerConfig {
     pub production: bool,
 }
 
+use std::fmt::Display;
+
+/// Supported database backends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DatabaseBackend {
+    Sqlite,
+    Postgres,
+}
+
+impl Display for DatabaseBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Sqlite => write!(f, "sqlite"),
+            Self::Postgres => write!(f, "postgres"),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct DatabaseConfig {
-    /// Path to the SQLite database file (supports ~ prefix).
-    pub path: String,
+    /// Unified database connection URL (e.g., sqlite://./auth.db or postgres://user:pass@host/db).
+    #[serde(default)]
+    pub url: Option<String>,
+    /// Legacy path to SQLite database file.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// Maximum connection pool size.
+    #[serde(default)]
+    pub max_connections: Option<u32>,
+    /// Minimum connection pool size.
+    #[serde(default)]
+    pub min_connections: Option<u32>,
+    /// Connection timeout in seconds.
+    #[serde(default)]
+    pub connect_timeout_secs: Option<u64>,
+    /// Idle connection timeout in seconds.
+    #[serde(default)]
+    pub idle_timeout_secs: Option<u64>,
+    /// Maximum connection lifetime in seconds.
+    #[serde(default)]
+    pub max_lifetime_secs: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -112,7 +153,73 @@ impl Default for DatabaseConfig {
             "/var/lib/nx9-auth/auth.db".to_string()
         };
         Self {
-            path: default_db_path,
+            url: None,
+            path: Some(default_db_path),
+            max_connections: None,
+            min_connections: None,
+            connect_timeout_secs: None,
+            idle_timeout_secs: None,
+            max_lifetime_secs: None,
+        }
+    }
+}
+
+impl DatabaseConfig {
+    /// Resolve and normalize the database URL and derive the active backend.
+    pub fn resolved_url(&self) -> Result<(String, DatabaseBackend)> {
+        let raw = if let Some(ref url) = self.url {
+            let trimmed = url.trim();
+            if !trimmed.is_empty() {
+                trimmed.to_string()
+            } else if let Some(ref path) = self.path {
+                path.trim().to_string()
+            } else {
+                anyhow::bail!("missing database url or path configuration");
+            }
+        } else if let Some(ref path) = self.path {
+            path.trim().to_string()
+        } else {
+            anyhow::bail!("missing database url or path configuration");
+        };
+
+        if raw.starts_with("postgres://") || raw.starts_with("postgresql://") {
+            Ok((raw, DatabaseBackend::Postgres))
+        } else if raw.starts_with("sqlite://") {
+            Ok((raw, DatabaseBackend::Sqlite))
+        } else if self.url.is_some() && raw.contains("://") {
+            anyhow::bail!("unknown or malformed database URL scheme in '{raw}'");
+        } else {
+            // Treat plain file path as SQLite
+            let path = resolve_home_path(&raw);
+            let url = format!("sqlite://{path}?mode=rwc");
+            Ok((url, DatabaseBackend::Sqlite))
+        }
+    }
+
+    /// Retrieve the SQLite path for legacy file-based commands.
+    pub fn sqlite_path(&self) -> String {
+        if let Some(ref path) = self.path {
+            resolve_home_path(path)
+        } else if let Some(ref url) = self.url {
+            if let Some(stripped) = url.strip_prefix("sqlite://") {
+                let clean = stripped.split('?').next().unwrap_or(stripped);
+                resolve_home_path(clean)
+            } else {
+                url.clone()
+            }
+        } else {
+            self.default_path()
+        }
+    }
+
+    fn default_path(&self) -> String {
+        if let Ok(home) = std::env::var("HOME") {
+            Path::new(&home)
+                .join(".local/share/nx9-auth/auth.db")
+                .to_string_lossy()
+                .into_owned()
+        } else {
+            "/var/lib/nx9-auth/auth.db".to_string()
         }
     }
 }
@@ -136,6 +243,53 @@ impl Default for AuditConfig {
     }
 }
 
+/// Shutdown timeout configuration.
+#[derive(Debug, Deserialize, Clone)]
+pub struct ShutdownConfig {
+    /// Maximum time (seconds) to wait for graceful shutdown of HTTP
+    /// connections and background workers.
+    #[serde(default = "ShutdownConfig::default_graceful_timeout")]
+    pub graceful_timeout_secs: u64,
+    /// Hard timeout (seconds) after which shutdown is forced. Must be
+    /// greater than `graceful_timeout_secs`.
+    #[serde(default = "ShutdownConfig::default_force_timeout")]
+    pub force_timeout_secs: u64,
+}
+
+impl ShutdownConfig {
+    fn default_graceful_timeout() -> u64 {
+        30
+    }
+    fn default_force_timeout() -> u64 {
+        35
+    }
+
+    /// Validate timeout invariants at startup.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.graceful_timeout_secs > 0,
+            "shutdown.graceful_timeout_secs must be > 0 (got {})",
+            self.graceful_timeout_secs
+        );
+        anyhow::ensure!(
+            self.force_timeout_secs > self.graceful_timeout_secs,
+            "shutdown.force_timeout_secs ({}) must be > graceful_timeout_secs ({})",
+            self.force_timeout_secs,
+            self.graceful_timeout_secs
+        );
+        Ok(())
+    }
+}
+
+impl Default for ShutdownConfig {
+    fn default() -> Self {
+        Self {
+            graceful_timeout_secs: 30,
+            force_timeout_secs: 35,
+        }
+    }
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 fn resolve_home_path(path: &str) -> String {
@@ -155,7 +309,15 @@ fn resolve_home_path(path: &str) -> String {
 impl Config {
     /// Resolve path prefixes such as ~ to actual home directories.
     pub fn resolve_paths(&mut self) {
-        self.database.path = resolve_home_path(&self.database.path);
+        if let Some(ref mut path) = self.database.path {
+            *path = resolve_home_path(path);
+        }
+        if let Some(ref mut url) = self.database.url {
+            if let Some(stripped) = url.strip_prefix("sqlite://") {
+                let clean = resolve_home_path(stripped);
+                *url = format!("sqlite://{clean}");
+            }
+        }
     }
 
     /// Load and parse config from a TOML file.
@@ -288,9 +450,13 @@ mod tests {
         assert!(!cfg.server.cookie_secure);
         assert!(!cfg.server.production);
         if std::env::var("HOME").is_ok() {
-            assert!(cfg.database.path.contains(".local/share/nx9-auth/auth.db"));
+            assert!(
+                cfg.database
+                    .sqlite_path()
+                    .contains(".local/share/nx9-auth/auth.db")
+            );
         } else {
-            assert_eq!(cfg.database.path, "/var/lib/nx9-auth/auth.db");
+            assert_eq!(cfg.database.sqlite_path(), "/var/lib/nx9-auth/auth.db");
         }
         assert_eq!(cfg.security.session_ttl_hours, 24);
         assert_eq!(cfg.security.session_absolute_ttl_days, 30);

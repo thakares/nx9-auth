@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS service_accounts (
     name        TEXT    NOT NULL,
     description TEXT,
     enabled     INTEGER NOT NULL DEFAULT 1,
-    created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    updated_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    created_at  TEXT    NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\')),
+    updated_at  TEXT    NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\')),
     UNIQUE (tenant_id, name)
 );
 

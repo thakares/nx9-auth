@@ -69,8 +69,8 @@ impl TokensRepository for PostgresTokensRepository {
 
     async fn update_last_used(&self, id: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-        "UPDATE api_tokens SET last_used_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $1",
-    )
+            "UPDATE api_tokens SET last_used_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $1",
+        )
     .bind(id)
     .execute(&self.pool)
     .await?;

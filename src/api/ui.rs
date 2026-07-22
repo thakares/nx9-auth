@@ -62,6 +62,28 @@ pub async fn serve_ui(uri: Uri) -> Response {
         return StatusCode::NOT_FOUND.into_response();
     }
 
+    // Security Hardening: Reject & sanitize any GET request containing credentials in query string.
+    if let Some(query) = uri.query() {
+        let q_lower = query.to_ascii_lowercase();
+        if q_lower.contains("password=")
+            || q_lower.contains("username=")
+            || q_lower.contains("secret=")
+        {
+            tracing::warn!(path = %uri.path(), "rejected credential query parameters in GET request");
+            let clean_path = if uri.path().is_empty() {
+                "/"
+            } else {
+                uri.path()
+            };
+            return Response::builder()
+                .status(StatusCode::SEE_OTHER)
+                .header(header::LOCATION, clean_path)
+                .header(header::CACHE_CONTROL, "no-store")
+                .body(Body::empty())
+                .unwrap_or_else(|_| StatusCode::BAD_REQUEST.into_response());
+        }
+    }
+
     // Normalize and reject path traversal
     if path.contains("..") {
         return StatusCode::BAD_REQUEST.into_response();

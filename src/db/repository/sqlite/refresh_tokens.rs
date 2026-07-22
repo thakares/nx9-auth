@@ -6,15 +6,7 @@ pub struct SqliteRefreshTokensRepository {
     pub pool: SqlitePool,
 }
 
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct RefreshToken {
-    pub id: String,
-    pub user_id: String,
-    pub token_hash: String,
-    pub expires_at: String,
-    pub revoked: bool,
-    pub created_at: String,
-}
+use crate::db::models::RefreshToken;
 
 #[async_trait]
 impl RefreshTokensRepository for SqliteRefreshTokensRepository {

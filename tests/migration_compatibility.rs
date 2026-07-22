@@ -1,3 +1,5 @@
+#![cfg(feature = "sqlite")]
+
 use nx9_auth::db::{self, models::Tenant};
 
 async fn setup_test_db() -> (sqlx::SqlitePool, String) {

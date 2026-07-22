@@ -1,7 +1,9 @@
 pub mod api_token;
 pub mod application;
 pub mod audit_log;
+pub mod group;
 pub mod permission;
+pub mod refresh_token;
 pub mod role;
 pub mod service_account;
 pub mod session;
@@ -10,13 +12,13 @@ pub mod user;
 
 pub use api_token::ApiToken;
 pub use application::Application;
-pub use audit_log::{AuditLog, AuditSeverity};
+pub use audit_log::{AuditFilter, AuditLog, AuditSeverity};
+pub use group::Group;
 #[allow(unused_imports)]
 pub use permission::Permission;
+pub use refresh_token::RefreshToken;
 pub use role::Role;
 pub use service_account::ServiceAccount;
 pub use session::Session;
 pub use tenant::Tenant;
-pub use user::{User, UserStatus};
-pub mod group;
-pub use group::Group;
+pub use user::{User, UserProfile, UserStatus};

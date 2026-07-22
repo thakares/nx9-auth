@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     token_hash   TEXT    NOT NULL UNIQUE,
     last_used_at TEXT,
     expires_at   TEXT,
-    created_at   TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    created_at   TEXT    NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\')),
     revoked      INTEGER NOT NULL DEFAULT 0
 );
 

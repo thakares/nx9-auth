@@ -1,3 +1,5 @@
+#![cfg(feature = "sqlite")]
+
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
@@ -53,7 +55,10 @@ fn test_config(db_path: String) -> Config {
             cookie_secure: false,
             production: false,
         },
-        database: nx9_auth::config::DatabaseConfig { path: db_path },
+        database: nx9_auth::config::DatabaseConfig {
+            path: Some(db_path),
+            ..Default::default()
+        },
         security: test_security_config(),
         audit: nx9_auth::config::AuditConfig { enabled: true },
         ..Default::default()

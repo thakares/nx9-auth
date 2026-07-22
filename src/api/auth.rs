@@ -112,7 +112,10 @@ pub async fn login(
         return Err(AppError::InvalidCredentials);
     }
 
-    let user = final_user.expect("authenticated user");
+    let user = match final_user {
+        Some(u) => u,
+        None => return Err(AppError::InvalidCredentials),
+    };
 
     // Clear rate limit on success
     if let Some(ip_str) = &ctx.ip_address {

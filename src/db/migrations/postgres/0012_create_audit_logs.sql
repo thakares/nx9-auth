@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
     ip_address      TEXT,
     user_agent      TEXT,
     metadata_json   TEXT,
-    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at      TEXT NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_logs_actor      ON audit_logs(actor_user_id);

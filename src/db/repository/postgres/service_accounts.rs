@@ -50,8 +50,8 @@ impl ServiceAccountsRepository for PostgresServiceAccountsRepository {
 
     async fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), sqlx::Error> {
         sqlx::query(
-        "UPDATE service_accounts SET enabled = $1, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $2",
-    )
+            "UPDATE service_accounts SET enabled = $1, updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $2",
+        )
     .bind(enabled)
     .bind(id)
     .execute(&self.pool)

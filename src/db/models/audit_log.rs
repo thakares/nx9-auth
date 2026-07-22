@@ -38,6 +38,20 @@ impl std::fmt::Display for AuditSeverity {
     }
 }
 
+/// Filtered audit log query. All filters are optional.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct AuditFilter {
+    pub actor_user_id: Option<String>,
+    pub action: Option<String>,
+    pub resource_type: Option<String>,
+    pub severity: Option<String>,
+    pub since: Option<String>,
+    pub until: Option<String>,
+    pub search: Option<String>,
+    pub limit: i64,
+    pub offset: i64,
+}
+
 /// A row from the `audit_logs` table.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct AuditLog {

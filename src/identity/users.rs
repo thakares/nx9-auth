@@ -157,10 +157,15 @@ pub async fn reset_password(
     audit_ip: Option<&str>,
     audit_ua: Option<&str>,
 ) -> Result<(), AppError> {
-    let user = provider.users().find_by_id(user_id).await?;
+    let user = provider
+        .users()
+        .find_by_id(user_id)
+        .await
+        .map_err(AppError::Database)?
+        .ok_or(AppError::NotFound)?;
     let user_roles = provider
         .roles()
-        .list_for_user(&user.unwrap().id)
+        .list_for_user(&user.id)
         .await
         .map_err(AppError::Database)?;
     let is_admin = user_roles.iter().any(|r| r.name == "admin");

@@ -1,5 +1,6 @@
 #[cfg(feature = "postgres")]
 use sqlx::PgPool;
+#[cfg(feature = "sqlite")]
 use sqlx::SqlitePool;
 
 use crate::db::repository::traits::*;

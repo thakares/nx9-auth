@@ -1,12 +1,16 @@
+#[cfg(feature = "sqlite")]
 use nx9_auth::{
     config::SecurityConfig,
     db::{self, models::Tenant, provider::SqliteProvider},
     identity::users as identity_users,
     security::{passwords, sessions, tokens},
 };
+#[cfg(feature = "sqlite")]
 use std::sync::Arc;
+#[cfg(feature = "sqlite")]
 use std::time::Instant;
 
+#[cfg(feature = "sqlite")]
 async fn setup_bench_db() -> (Arc<dyn nx9_auth::db::provider::DatabaseProvider>, String) {
     let db_id = uuid::Uuid::new_v4().to_string();
     let db_path = format!("target/bench_{}.db", db_id);
@@ -21,6 +25,7 @@ async fn setup_bench_db() -> (Arc<dyn nx9_auth::db::provider::DatabaseProvider>,
     (provider, db_path)
 }
 
+#[cfg(feature = "sqlite")]
 fn print_stats(name: &str, mut durations: Vec<std::time::Duration>, count: usize) {
     durations.sort();
     let total_secs: f64 = durations.iter().map(|d| d.as_secs_f64()).sum();
@@ -39,6 +44,7 @@ fn print_stats(name: &str, mut durations: Vec<std::time::Duration>, count: usize
     println!();
 }
 
+#[cfg(feature = "sqlite")]
 #[tokio::main]
 async fn main() {
     println!("Starting nx9-auth microbenchmarks...");
@@ -177,4 +183,9 @@ async fn main() {
     );
 
     let _ = std::fs::remove_file(db_path);
+}
+
+#[cfg(not(feature = "sqlite"))]
+fn main() {
+    println!("Benchmark binary requires the 'sqlite' feature");
 }

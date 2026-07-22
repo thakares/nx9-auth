@@ -1,6 +1,4 @@
-pub use crate::db::repository::sqlite::audit::*;
-
-use crate::db::models::AuditLog;
+use crate::db::models::{AuditFilter, AuditLog};
 use crate::db::provider::DatabaseProvider;
 use std::sync::Arc;
 // Removed direct import of AuditFilter to avoid conflict with traits version

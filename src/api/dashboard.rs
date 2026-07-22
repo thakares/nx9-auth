@@ -84,7 +84,7 @@ pub async fn dashboard(State(state): State<AppState>, auth: AuthUser) -> Result<
     let recent_personal = state
         .provider
         .audit()
-        .list_filtered(&crate::db::repository::audit::AuditFilter {
+        .list_filtered(&crate::db::models::AuditFilter {
             actor_user_id: Some(auth.user.id.clone()),
             limit: 10,
             ..Default::default()
@@ -175,7 +175,7 @@ pub async fn dashboard(State(state): State<AppState>, auth: AuthUser) -> Result<
         let recent_logins = state
             .provider
             .audit()
-            .list_filtered(&crate::db::repository::audit::AuditFilter {
+            .list_filtered(&crate::db::models::AuditFilter {
                 action: Some("login_success".into()),
                 limit: 10,
                 ..Default::default()

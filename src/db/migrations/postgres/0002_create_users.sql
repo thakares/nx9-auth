@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     -- 1 = active, 2 = disabled, 3 = locked
     status          INTEGER NOT NULL DEFAULT 1,
     last_login_at   TEXT,
-    created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
-    updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    created_at      TEXT    NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\')),
+    updated_at      TEXT    NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\')),
     UNIQUE (tenant_id, username)
 );
 

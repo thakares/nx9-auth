@@ -88,8 +88,7 @@ impl AtomicRuntimeState {
 
     /// Read the current state (acquire ordering for visibility).
     pub fn load(&self) -> RuntimeState {
-        RuntimeState::from_u8(self.state.load(Ordering::Acquire))
-            .unwrap_or(RuntimeState::Stopped)
+        RuntimeState::from_u8(self.state.load(Ordering::Acquire)).unwrap_or(RuntimeState::Stopped)
     }
 
     /// Attempt an atomic state transition from `expected` to `new`.
@@ -112,8 +111,7 @@ impl AtomicRuntimeState {
                 Ok(new)
             }
             Err(actual) => {
-                let actual_state =
-                    RuntimeState::from_u8(actual).unwrap_or(RuntimeState::Stopped);
+                let actual_state = RuntimeState::from_u8(actual).unwrap_or(RuntimeState::Stopped);
                 tracing::debug!(
                     expected = %expected,
                     actual = %actual_state,

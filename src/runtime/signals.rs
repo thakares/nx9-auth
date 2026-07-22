@@ -1,7 +1,7 @@
 //! Unix signal handling for graceful and forced shutdown.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 #[derive(Clone)]
 pub struct SignalManager {

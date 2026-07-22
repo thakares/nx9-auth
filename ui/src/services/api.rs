@@ -61,7 +61,7 @@ fn client() -> Client {
 
 /// Attach credentials + optional bearer session token.
 fn authorize(builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-    // let builder = builder.fetch_credentials_include();
+    let builder = builder.fetch_credentials_include();
     if let Some(token) = session::load_access_token() {
         builder.header("Authorization", format!("Bearer {token}"))
     } else {
@@ -180,6 +180,7 @@ pub async fn login(username: &str, password: &str) -> Result<LoginResponse, ApiE
     let url = api_url("/auth/login");
     let resp = client()
         .post(&url)
+        .fetch_credentials_include()
         .header("Accept", "application/json")
         .header("Content-Type", "application/json")
         .json(&body)

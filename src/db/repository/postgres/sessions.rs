@@ -61,11 +61,11 @@ impl SessionsRepository for PostgresSessionsRepository {
 
     async fn update_last_seen(&self, id: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-        "UPDATE sessions SET last_seen_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $1",
-    )
-    .bind(id)
-    .execute(&self.pool)
-    .await?;
+            "UPDATE sessions SET last_seen_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $1",
+        )
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -76,7 +76,7 @@ impl SessionsRepository for PostgresSessionsRepository {
         SELECT * FROM sessions
         WHERE user_id = $1
           AND revoked = 0
-          AND expires_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          AND expires_at >= to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
         ORDER BY last_seen_at DESC
         "#,
         )
@@ -86,7 +86,16 @@ impl SessionsRepository for PostgresSessionsRepository {
     }
 
     async fn list_all_active(&self) -> Result<Vec<Session>, sqlx::Error> {
-        unimplemented!()
+        sqlx::query_as::<_, Session>(
+            r#"
+        SELECT * FROM sessions
+        WHERE revoked = 0
+          AND expires_at >= to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+        ORDER BY last_seen_at DESC
+        "#,
+        )
+        .fetch_all(&self.pool)
+        .await
     }
 
     /// Count active sessions system-wide.
@@ -95,7 +104,7 @@ impl SessionsRepository for PostgresSessionsRepository {
             r#"
         SELECT COUNT(*) FROM sessions
         WHERE revoked = 0
-          AND expires_at >= strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+          AND expires_at >= to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
         "#,
         )
         .fetch_one(&self.pool)
@@ -109,7 +118,7 @@ impl SessionsRepository for PostgresSessionsRepository {
             r#"
         DELETE FROM sessions
         WHERE revoked = 1
-           OR expires_at < strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+           OR expires_at < to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
         "#,
         )
         .execute(&self.pool)
@@ -117,7 +126,14 @@ impl SessionsRepository for PostgresSessionsRepository {
         Ok(result.rows_affected())
     }
 
-    async fn revoke_others(&self, _user_id: &str, _except_id: &str) -> Result<u64, sqlx::Error> {
-        unimplemented!()
+    async fn revoke_others(&self, user_id: &str, except_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            "UPDATE sessions SET revoked = 1 WHERE user_id = $1 AND id != $2 AND revoked = 0",
+        )
+        .bind(user_id)
+        .bind(except_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected())
     }
 }

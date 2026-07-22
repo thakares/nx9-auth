@@ -28,10 +28,7 @@ pub fn LoginPage() -> Element {
         }
     });
 
-    let on_submit = move |evt: Event<FormData>| {
-        // Critical: prevent native form submission (which defaults to GET
-        // and would put credentials in the query string / browser history).
-        evt.prevent_default();
+    let mut handle_submit = move || {
         if loading() {
             return;
         }
@@ -43,6 +40,7 @@ pub fn LoginPage() -> Element {
             return;
         }
 
+        let _ = web_sys::console::log_1(&"[nx9-auth-ui] Submitting login request...".into());
         loading.set(true);
         error.set(None);
         let mut auth = state.auth;
@@ -51,8 +49,10 @@ pub fn LoginPage() -> Element {
         let mut password = password;
         let nav = nav.clone();
         spawn(async move {
+            let _ = web_sys::console::log_1(&"[nx9-auth-ui] Executing api::login...".into());
             match api::login(&u, &p).await {
                 Ok(login) => {
+                    let _ = web_sys::console::log_1(&"[nx9-auth-ui] Login succeeded".into());
                     // Clear password from UI memory after successful submit.
                     password.set(String::new());
 
@@ -125,6 +125,7 @@ pub fn LoginPage() -> Element {
                     nav.replace(Route::DashboardPage {});
                 }
                 Err(e) => {
+                    let _ = web_sys::console::warn_1(&format!("[nx9-auth-ui] Login failed: {e:?}").into());
                     // Map API errors to a safe, non-enumerating message for creds.
                     let msg = match e {
                         api::ApiError::Unauthorized
@@ -153,6 +154,16 @@ pub fn LoginPage() -> Element {
         });
     };
 
+    let on_form_submit = move |evt: Event<FormData>| {
+        evt.prevent_default();
+        handle_submit();
+    };
+
+    let on_button_click = move |evt: Event<MouseData>| {
+        evt.prevent_default();
+        handle_submit();
+    };
+
     rsx! {
         div { class: "auth-page",
             div { class: "auth-card",
@@ -170,13 +181,11 @@ pub fn LoginPage() -> Element {
                     div { class: "alert alert-error", role: "alert", "{err}" }
                 }
 
-                // method="post" is mandatory: HTML default is GET, which would
-                // put credentials in the URL if preventDefault failed.
+                // SPA form submission via WASM fetch() only (Content-Type: application/json).
+                // Both form onsubmit and button onclick trigger handle_submit with prevent_default.
                 form {
-                    method: "post",
-                    action: "#",
                     autocomplete: "on",
-                    onsubmit: on_submit,
+                    onsubmit: on_form_submit,
                     TextInput {
                         label: "Username",
                         name: "username",
@@ -198,6 +207,7 @@ pub fn LoginPage() -> Element {
                         class: "btn btn-primary",
                         r#type: "submit",
                         style: "width: 100%; margin-top: 0.5rem;",
+                        onclick: on_button_click,
                         disabled: loading() || username().trim().is_empty() || password().is_empty(),
                         if loading() {
                             span { class: "spinner", style: "width:14px;height:14px;border-width:2px;" }

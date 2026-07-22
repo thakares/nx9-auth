@@ -32,6 +32,9 @@ pub async fn security_headers(
         HeaderValue::from_static("no-referrer"),
     );
 
+    // Prevent sensitive state caching across browsers and intermediaries
+    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+
     // SPA + same-origin API CSP.
     // 'wasm-unsafe-eval' is required for WebAssembly instantiation in Chromium.
     headers.insert(

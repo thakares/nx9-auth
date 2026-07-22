@@ -1,3 +1,5 @@
+#![cfg(feature = "sqlite")]
+
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},

@@ -1,6 +1,10 @@
-# Running nx9-auth in Docker
+**License:** Apache-2.0 / MIT Dual License  
 
-This guide explains how to build, run, initialize, and manage `nx9-auth` using Docker and Docker Compose.
+---
+
+## Architectural Rationale: Root Docker Manifests
+
+The `Dockerfile`, `docker-compose.yml`, and `compose.casaos.yml` reside at the repository root to comply with standard Docker tooling standards (`docker build .`, `docker compose up`), automated container registry build triggers (Docker Hub, GHCR), and platform app managers (CasaOS, Portainer).
 
 ---
 
@@ -9,7 +13,7 @@ This guide explains how to build, run, initialize, and manage `nx9-auth` using D
 To build the Docker image locally:
 
 ```bash
-docker build -t nx9-auth:0.1.0-rc1 .
+docker build -t nx9-auth:v0.3.0 .
 ```
 
 ---

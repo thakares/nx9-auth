@@ -10,9 +10,12 @@ WASM_OUT="$TARGET/wasm32-unknown-unknown/release/nx9-auth-ui.wasm"
 DIST="$ROOT/ui/dist"
 
 echo "==> Building nx9-auth-ui (wasm32-unknown-unknown, release)"
-cargo build --manifest-path ui/Cargo.toml --target wasm32-unknown-unknown --release
+cargo build --manifest-path ui/Cargo.toml --target-dir "$TARGET" --target wasm32-unknown-unknown --release
 
-# Resolve wasm-bindgen CLI (must match the wasm-bindgen crate version)
+if [ ! -f "$WASM_OUT" ] && [ -f "$ROOT/ui/target/wasm32-unknown-unknown/release/nx9-auth-ui.wasm" ]; then
+  WASM_OUT="$ROOT/ui/target/wasm32-unknown-unknown/release/nx9-auth-ui.wasm"
+fi
+
 WBG_VER="$(cargo tree -p nx9-auth-ui -i wasm-bindgen --depth 0 2>/dev/null | head -1 | sed -n 's/.*v\([0-9.]*\).*/\1/p')"
 WBG_VER="${WBG_VER:-0.2.125}"
 

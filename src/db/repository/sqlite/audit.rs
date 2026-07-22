@@ -2,24 +2,10 @@ use crate::db::repository::traits::AuditRepository;
 use async_trait::async_trait;
 use sqlx::SqlitePool;
 
-use crate::db::models::AuditLog;
+use crate::db::models::{AuditFilter, AuditLog};
 
 pub struct SqliteAuditRepository {
     pub pool: SqlitePool,
-}
-
-/// Filtered audit log query. All filters are optional.
-#[derive(Debug, Default)]
-pub struct AuditFilter {
-    pub actor_user_id: Option<String>,
-    pub action: Option<String>,
-    pub resource_type: Option<String>,
-    pub severity: Option<String>,
-    pub since: Option<String>,
-    pub until: Option<String>,
-    pub search: Option<String>,
-    pub limit: i64,
-    pub offset: i64,
 }
 
 #[async_trait]

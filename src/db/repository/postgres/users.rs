@@ -2,13 +2,11 @@ use crate::db::repository::traits::UsersRepository;
 use async_trait::async_trait;
 use sqlx::PgPool;
 
-use crate::db::models::User;
+use crate::db::models::{User, UserProfile};
 
 pub struct PostgresUsersRepository {
     pub pool: PgPool,
 }
-
-use crate::db::repository::sqlite::users::UserProfile;
 
 #[async_trait]
 impl UsersRepository for PostgresUsersRepository {
@@ -91,8 +89,8 @@ impl UsersRepository for PostgresUsersRepository {
 
     async fn update_status(&self, id: &str, status: i32) -> Result<(), sqlx::Error> {
         sqlx::query(
-        "UPDATE users SET status = $1, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $2",
-    )
+            "UPDATE users SET status = $1, updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $2",
+        )
     .bind(status)
     .bind(id)
     .execute(&self.pool)
@@ -102,8 +100,8 @@ impl UsersRepository for PostgresUsersRepository {
 
     async fn update_password_hash(&self, id: &str, password_hash: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-        "UPDATE users SET password_hash = $1, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $2",
-    )
+            "UPDATE users SET password_hash = $1, updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $2",
+        )
     .bind(password_hash)
     .bind(id)
     .execute(&self.pool)
@@ -113,8 +111,8 @@ impl UsersRepository for PostgresUsersRepository {
 
     async fn set_last_login(&self, id: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-        "UPDATE users SET last_login_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = $1",
-    )
+            "UPDATE users SET last_login_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $1",
+        )
     .bind(id)
     .execute(&self.pool)
     .await?;

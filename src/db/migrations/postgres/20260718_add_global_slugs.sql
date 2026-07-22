@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS global_slugs (
     entity_type     TEXT    NOT NULL, -- 'tenant', 'user', 'role', 'group', 'permission', 'application', 'service_account', 'organization', 'team'
     entity_id       TEXT    NOT NULL,
     tenant_id       TEXT    NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-    created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at      TEXT    NOT NULL DEFAULT (to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z\'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_global_slugs_entity ON global_slugs(entity_type, entity_id);

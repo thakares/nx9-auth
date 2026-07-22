@@ -4,555 +4,104 @@
 
 **Enterprise Identity & Access Management (IAM)**
 
-*Self-Hosted • Privacy-First • Pure Rust • Single Binary • Linux Native*
+*Self-Hosted • Privacy-First • Pure Rust • Single Binary • Dual Database Engine*
 
-[![Version](https://img.shields.io/badge/version-v0.2.0-blue.svg)]()
-[![Rust](https://img.shields.io/badge/Rust-2021-orange.svg)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-v0.3.0-blue.svg)]()
+[![Rust](https://img.shields.io/badge/Rust-2024-orange.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-Apache2--0%20%7C%20MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux-success.svg)]()
 [![SQLite](https://img.shields.io/badge/database-SQLite-blue.svg)]()
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-coming%20soon-lightgrey.svg)]()
+[![PostgreSQL](https://img.shields.io/badge/database-PostgreSQL-blue.svg)]()
 
 </p>
-
----
-
-# nx9-auth
-
-<div align="center">
-
-**Enterprise Identity & Access Management (IAM) written entirely in Rust.**
-
-Self-hosted • Privacy-first • Linux-native • Single Binary • Multi-Tenant • Open Source
-
----
-
-*Part of the **NX9** ecosystem.*
-
-</div>
 
 ---
 
 ## Overview
 
-**nx9-auth** is a modern Identity & Access Management (IAM) server built entirely in **Rust**, designed for organizations that require secure, self-hosted authentication and authorization without the complexity of traditional enterprise IAM platforms.
+**nx9-auth** is a production-grade, self-hosted Identity & Access Management (IAM) server built entirely in **Rust**. It provides multi-tenant user authentication, Role-Based Access Control (RBAC), Personal Access Tokens (PATs), OAuth2 service accounts, active session management, full audit logging, an enterprise graceful shutdown runtime lifecycle, and an embedded WebAssembly (WASM) administrative UI.
 
-Unlike heavyweight Java-based IAM systems, **nx9-auth** focuses on:
-
-- Security first
-- Operational simplicity
-- Low resource usage
-- Fast deployment
-- Modern REST APIs
-- Complete ownership of your data
-
-The project is designed as the authentication foundation for the **NX9 ecosystem**, while remaining completely independent and reusable for any application.
+`nx9-auth` compiles into a single standalone binary containing both the Axum REST API backend and the embedded Dioxus WASM frontend, backed by a database-agnostic provider supporting both **SQLite** and **PostgreSQL**.
 
 ---
 
-# Dashboard
+## Key Features
 
-<p align="center">
-<img src="docs/images/dashboard-overview.png" width="100%">
-</p>
-
----
-
-# Features
-
-## Identity Management
-
-- ✅ Multi-Tenant Architecture
-- ✅ User Management
-- ✅ User Profiles
-- ✅ Groups
-- ✅ Role Based Access Control (RBAC)
-- ✅ Fine-grained Permissions
-- ✅ Applications
-- ✅ Service Accounts
-
-## Authentication
-
-- ✅ Username / Password
-- ✅ Session Management
-- ✅ API Tokens
-- ✅ Personal Access Tokens
-- ✅ Password Reset
-- ✅ Secure Cookie Authentication
-
-## Security
-
-- ✅ Argon2id Password Hashing
-- ✅ Session Revocation
-- ✅ Token Revocation
-- ✅ Security Headers
-- ✅ Audit Logging
-- ✅ Rate Limiting
-- ✅ No Plaintext Password Storage
-- ✅ No Plaintext Token Storage
-- ✅ Transaction Rollback Protection
-
-## Administration
-
-- ✅ Dashboard
-- ✅ Audit Viewer
-- ✅ Settings
-- ✅ Tenant Management
-- ✅ Profile Management
-
-## Database
-
-- ✅ SQLite
-- 🚧 PostgreSQL
-- 🚧 MySQL
+- **Unified Enterprise Runtime Lifecycle**: Atomic 8-state lifecycle machine (`Initializing` → `Starting` → `Running` → `Draining` → `StoppingWorkers` → `ExecutingHooks` → `ClosingResources` → `Stopped`), `CancellationToken` propagation, `JoinSet` worker management, prioritized shutdown hooks, and destructor-safe Unix signal escalation.
+- **Dual Database Engine**: Native support for SQLite and enterprise PostgreSQL with 100% repository parity and runtime connection pool ownership.
+- **Enterprise Security Model**: Argon2id password hashing, BLAKE3 token/session hashing, rate-limiting, CSP, HSTS, and non-enumerating authentication.
+- **Multi-Tenant & RBAC**: Tenant isolation, fine-grained permission matrix, role assignments, and organizational user groups.
+- **Personal Access Tokens & Service Accounts**: Machine-to-machine authentication with automatic prefix tracking and instant revocation.
+- **Embedded WebAssembly UI**: Dioxus-powered administration dashboard with `#boot-loader` lifecycle management.
+- **Comprehensive CLI Tooling**: Automated `init`, `doctor`, `migrate`, `backup`, `restore`, and user management commands.
 
 ---
 
-# Screenshots
-
-## Login
-
-<p align="center">
-<img src="docs/images/login-page.png" width="90%">
-</p>
-
----
-
-## Dashboard
-
-<p align="center">
-<img src="docs/images/dashboard-overview.png" width="90%">
-</p>
-
----
-
-## Roles & Permissions
-
-| Roles | Permissions |
-|------|------|
-| ![](docs/images/roles-management.png) | ![](docs/images/permissions-management.png) |
-
----
-
-## Applications
-
-| Applications | Create Application |
-|------|------|
-| ![](docs/images/applications-management.png) | ![](docs/images/applications-create-dialog.png) |
-
----
-
-## Service Accounts
-
-<p align="center">
-<img src="docs/images/service-accounts-create-dialog.png" width="90%">
-</p>
-
----
-
-## Sessions
-
-<p align="center">
-<img src="docs/images/sessions-management.png" width="90%">
-</p>
-
----
-
-## API Tokens
-
-<p align="center">
-<img src="docs/images/api-tokens-management.png" width="90%">
-</p>
-
----
-
-## Audit Log
-
-<p align="center">
-<img src="docs/images/audit-log.png" width="90%">
-</p>
-
----
-
-## Tenants
-
-<p align="center">
-<img src="docs/images/tenants-management.png" width="90%">
-</p>
-
----
-
-## Settings
-
-<p align="center">
-<img src="docs/images/settings-page.png" width="90%">
-</p>
-
----
-
-# Why nx9-auth?
-
-| Traditional Enterprise IAM | nx9-auth |
-|----------------------------|----------|
-| Java based | Rust |
-| Large memory footprint | Lightweight |
-| Complex deployment | Single Binary |
-| Multiple services | Minimal dependencies |
-| Cloud-first | Self-hosted |
-| Vendor lock-in | Open Source |
-| Large attack surface | Minimal attack surface |
-
----
-
-# Architecture
-
-```
-                Browser
-
-                    │
-
-                    ▼
-
-            Dioxus Web UI (WASM)
-
-                    │
-
-                    ▼
-
-              REST API (Axum)
-
-                    │
-
-                    ▼
-
-          Authentication Layer
-
-                    │
-
-                    ▼
-
-          Authorization (RBAC)
-
-                    │
-
-                    ▼
-
-          Repository Layer
-
-                    │
-
-                    ▼
-
-          Database Provider
-
-                    │
-
-        ┌───────────┴───────────┐
-        │                       │
-     SQLite                 PostgreSQL
-     (Current)               (Planned)
-```
-
----
-
-# Technology Stack
-
-| Component | Technology |
-|------------|------------|
-| Language | Rust |
-| Backend | Axum |
-| Frontend | Dioxus |
-| Database | SQLite |
-| Async Runtime | Tokio |
-| Authentication | JWT + Cookies |
-| Password Hashing | Argon2id |
-| ORM | SQLx |
-| Serialization | Serde |
-
----
-
-# Quick Start
-
-Clone the repository
+## Quickstart
 
 ```bash
-git clone https://github.com/thakares/nx9-auth.git
-cd nx9-auth
-```
+# Initialize application directory, configuration, and default administrator
+nx9-auth init
 
-Build
+# Verify installation & system health
+nx9-auth doctor
 
-```bash
-cargo build --release
-```
-
-Initialize
-
-```bash
-./target/release/nx9-auth init
-```
-
-Run Setup Wizard
-
-```bash
-./target/release/nx9-auth setup
-```
-
-Start Server
-
-```bash
-./target/release/nx9-auth serve
-```
-
-Open
-
-```
-http://localhost:8655
+# Start server
+nx9-auth serve
 ```
 
 ---
 
-# Configuration
+## Configuration
 
-Create your local configuration from the example:
+Configure `config.toml` or set environment variables:
 
-```bash
-cp config.example.toml config.toml
-```
+```toml
+[server]
+host = "127.0.0.1"
+port = 8655
+production = false
+cookie_secure = false
 
-Then edit:
+[database]
+# SQLite URL or file path:
+url = "sqlite://./data/auth.db?mode=rwc"
 
-- Database
-- Server
-- Session
-- Security
-- SMTP
-- Logging
+# Or enterprise PostgreSQL:
+# url = "postgres://user:password@localhost:5432/nx9auth"
 
----
+max_connections = 20
+min_connections = 5
+connect_timeout_secs = 10
+idle_timeout_secs = 600
+max_lifetime_secs = 1800
 
-# CLI
-
-| Command | Description |
-|----------|-------------|
-| init | Initialize project |
-| setup | Interactive setup wizard |
-| serve | Start server |
-| migrate | Run migrations |
-| backup | Backup database |
-| restore | Restore database |
-| user | User management |
-| token | API token management |
-
----
-
-# REST API
-
-| Endpoint | Description |
-|-----------|-------------|
-| /api/v1/auth | Authentication |
-| /api/v1/users | Users |
-| /api/v1/groups | Groups |
-| /api/v1/roles | Roles |
-| /api/v1/permissions | Permissions |
-| /api/v1/applications | Applications |
-| /api/v1/service-accounts | Service Accounts |
-| /api/v1/sessions | Sessions |
-| /api/v1/tokens | API Tokens |
-| /api/v1/audit | Audit Logs |
-| /api/v1/profile | Current User |
-| /api/v1/dashboard | Dashboard |
-
----
-
-# Docker
-
-```bash
-docker compose up -d
+[shutdown]
+graceful_timeout_secs = 30
+force_timeout_secs = 35
 ```
 
 ---
 
-# CasaOS
+## Documentation Index
 
-```bash
-docker compose -f compose.casaos.yml up -d
-```
-
----
-
-# Security
-
-Security is a primary design goal.
-
-Implemented features include:
-
-- Argon2id password hashing
-- Password strength validation
-- Secure session cookies
-- Session revocation
-- API token hashing
-- Audit logging
-- Rate limiting
-- Transaction rollback protection
-- Security headers
-- Authorization middleware
-- RBAC
-- Permission middleware
-- No plaintext passwords
-- No plaintext session tokens
-- No plaintext API tokens
+- [Runtime Lifecycle & Graceful Shutdown](docs/runtime-lifecycle.md)
+- [Release Notes](RELEASE_NOTES.md)
+- [Authentication Model](docs/AUTHENTICATION.md)
+- [Backup & Disaster Recovery](docs/BACKUPS.md)
+- [Docker Deployment Guide](docs/DOCKER.md)
+- [Linux Deployment Guide](docs/DEPLOYMENT.md)
+- [Integration Guide](docs/INTEGRATION_BZOD.md)
+- [Performance Benchmarks](docs/BENCHMARKS.md)
+- [Changelog](CHANGELOG.md)
+- [License](LICENSE)
 
 ---
 
-# Project Structure
+## License
 
-```
-docs/               Documentation
-scripts/            Build & release scripts
-src/                Backend
-tests/              Integration tests
-ui/                 Dioxus frontend
+Dual-licensed under either of:
+- Apache License, Version 2.0 ([LICENSE](LICENSE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT License ([LICENSE](LICENSE) or http://opensource.org/licenses/MIT)
 
-src/api             REST API
-src/db              Database
-src/security        Security
-src/middleware      Middleware
-src/identity        Identity services
-src/config          Configuration
-```
-
----
-
-# Documentation
-
-Additional documentation is available in the `docs/` directory.
-
-- AUTHENTICATION.md
-- BACKUPS.md
-- BENCHMARKS.md
-- DEPLOYMENT.md
-- DOCKER.md
-- INTEGRATION_BZOD.md
-
----
-
-# Testing
-
-Run all tests
-
-```bash
-cargo test
-```
-
-Run Clippy
-
-```bash
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-```
-
-Run formatter
-
-```bash
-cargo fmt --all
-```
-
----
-
-# Current Status
-
-| Feature | Status |
-|-----------|--------|
-| Authentication | ✅ |
-| RBAC | ✅ |
-| Sessions | ✅ |
-| Audit Logs | ✅ |
-| Applications | ✅ |
-| Service Accounts | ✅ |
-| API Tokens | ✅ |
-| Dashboard | ✅ |
-| SQLite | ✅ |
-| PostgreSQL | 🚧 |
-| OAuth2 | 🚧 |
-| OpenID Connect | 🚧 |
-| WebAuthn | 🚧 |
-| MFA | 🚧 |
-
----
-
-# Roadmap
-
-## Version 0.2
-
-- SQLite
-- REST API
-- Dashboard
-- Multi-Tenant
-- RBAC
-- Sessions
-- Audit Logging
-
-## Version 0.3
-
-- PostgreSQL
-- Repository Improvements
-
-## Version 0.4
-
-- OAuth2
-- OpenID Connect
-- LDAP
-
-## Version 0.5
-
-- WebAuthn
-- Multi-Factor Authentication
-
-## Version 1.0
-
-- Stable Enterprise Release
-
----
-
-# Philosophy
-
-The **NX9** ecosystem follows a simple philosophy:
-
-- Self-hostable first
-- Linux-native
-- Privacy-first
-- Open Source
-- Minimal dependencies
-- Operational simplicity
-- Single binary where practical
-- No vendor lock-in
-
----
-
-# Contributing
-
-Contributions are welcome.
-
-Please:
-
-1. Open an issue before major changes.
-2. Follow Rust formatting (`cargo fmt`).
-3. Ensure Clippy passes without warnings.
-4. Add tests for new functionality.
-5. Keep documentation up to date.
-
----
-
-# License
-
-Licensed under the MIT License.
-
----
-
-<div align="center">
-
-**nx9-auth** — Secure, self-hosted Identity & Access Management built with Rust.
-
-Part of the **NX9** ecosystem.
-
-</div>
+at your option.

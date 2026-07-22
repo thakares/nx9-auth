@@ -1,9 +1,7 @@
 use crate::db::models::{
-    ApiToken, Application, AuditLog, Group, Permission, Role, ServiceAccount, Session, Tenant, User,
+    ApiToken, Application, AuditFilter, AuditLog, Group, Permission, RefreshToken, Role,
+    ServiceAccount, Session, Tenant, User, UserProfile,
 };
-use crate::db::repository::sqlite::audit::AuditFilter;
-use crate::db::repository::sqlite::refresh_tokens::RefreshToken;
-use crate::db::repository::sqlite::users::UserProfile;
 
 #[async_trait::async_trait]
 pub trait UsersRepository: Send + Sync {

@@ -49,3 +49,10 @@ argon2_parallelism = 1
 # Enable structured audit logging to the database.
 # Disable only in development environments.
 enabled = true
+
+[shutdown]
+# Maximum time in seconds to wait for active HTTP requests and background workers to drain.
+graceful_timeout_secs = 30
+
+# Hard timeout in seconds after which task cancellation is forced. Must be > graceful_timeout_secs.
+force_timeout_secs = 35

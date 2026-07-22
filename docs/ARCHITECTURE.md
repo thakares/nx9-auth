@@ -73,16 +73,16 @@ The server runtime isolates process lifecycle management from business domain lo
 - **Shutdown**: Manages prioritized shutdown hooks and completion timeouts.
 
 ```mermaid
-stateDiagram-v2
-    [*] --> Initializing : Build application runtime
-    Initializing --> Starting : Start application
-    Starting --> Running : Bind TCP listener and serve
-    Running --> Draining : Signal received
-    Draining --> StoppingWorkers : Stop background workers
-    StoppingWorkers --> ExecutingHooks : Execute shutdown hooks
-    ExecutingHooks --> ClosingResources : Close database pools
-    ClosingResources --> Stopped : Process stopped
-    Stopped --> [*]
+flowchart TD
+    Start([Start]) --> Initializing[Initializing]
+    Initializing -->|Build application runtime| Starting[Starting]
+    Starting -->|Bind listener and serve| Running[Running]
+    Running -->|Signal received| Draining[Draining]
+    Draining -->|Stop background workers| StoppingWorkers[Stopping Workers]
+    StoppingWorkers -->|Execute shutdown hooks| ExecutingHooks[Executing Hooks]
+    ExecutingHooks -->|Close database pools| ClosingResources[Closing Resources]
+    ClosingResources --> Stopped[Stopped]
+    Stopped --> EndState([End])
 ```
 
 ---
@@ -100,8 +100,8 @@ flowchart TD
     TracingMW --> Sanitizer[Query String Credential Sanitizer]
     Sanitizer --> AuthExtractor[Authentication Extractor]
     AuthExtractor --> GuardCheck{Authorized}
-    GuardCheck -- No --> ErrResp[HTTP 401 or 403 Response] --> Client
-    GuardCheck -- Yes --> Handler[API Route Handler]
+    GuardCheck -->|No| ErrResp[HTTP 401 or 403 Response] --> Client
+    GuardCheck -->|Yes| Handler[API Route Handler]
     Handler --> Service[Domain Service Layer]
     Service --> RepoTrait[Repository Interface]
     RepoTrait --> DBImpl[Database Provider]
@@ -166,26 +166,26 @@ NX9-Auth supports dual-mode authentication, accommodating both browser environme
 ```mermaid
 flowchart TD
     AuthRequest[Incoming HTTP Request] --> RouteType{Request Path}
-    RouteType -- Login Route --> LoginHandler[Login Handler]
+    RouteType -->|Login Route| LoginHandler[Login Handler]
     LoginHandler --> VerifyPassword[Verify Password via Argon2id]
-    VerifyPassword -- Invalid --> TimingMitigation[Execute Dummy Hash Delay] --> Return401[Return HTTP 401]
-    VerifyPassword -- Valid --> RevokeSessions[Revoke Active User Sessions]
+    VerifyPassword -->|Invalid| TimingMitigation[Execute Dummy Hash Delay] --> Return401[Return HTTP 401]
+    VerifyPassword -->|Valid| RevokeSessions[Revoke Active User Sessions]
     RevokeSessions --> GenerateTokens[Generate Opaque Tokens]
     GenerateTokens --> HashTokens[Compute BLAKE3 Hashes]
     HashTokens --> SaveDB[Store Hashes in Database]
     SaveDB --> IssueAuth[Issue HttpOnly Cookie and Bearer Token] --> AuthSuccess[Authentication Success]
-    RouteType -- Protected API Route --> ExtractAuth[Extract Authentication Context]
+    RouteType -->|Protected API Route| ExtractAuth[Extract Authentication Context]
     ExtractAuth --> CheckCookie{Cookie Present}
-    CheckCookie -- Yes --> ValidateCookie[BLAKE3 Lookup in Sessions Table]
-    ValidateCookie -- Valid --> ExtractUserCookie[Find Active User] --> SessionAuth[Authenticated Session]
-    CheckCookie -- No --> CheckHeader{Authorization Header Present}
-    CheckHeader -- Yes --> TokenPrefix{Token Prefix}
-    TokenPrefix -- PAT Prefix --> ValidatePAT[BLAKE3 Lookup in PAT Table] --> ExtractUserPAT[Find Active User] --> PATAuth[Authenticated Token]
-    TokenPrefix -- Session Prefix --> ValidateSession[BLAKE3 Lookup in Sessions Table] --> ExtractUserSession[Find Active User] --> SessionAuth
-    CheckHeader -- No --> Return401
-    ValidateCookie -- Invalid --> CheckHeader
-    ValidatePAT -- Invalid --> Return401
-    ValidateSession -- Invalid --> Return401
+    CheckCookie -->|Yes| ValidateCookie[BLAKE3 Lookup in Sessions Table]
+    ValidateCookie -->|Valid| ExtractUserCookie[Find Active User] --> SessionAuth[Authenticated Session]
+    CheckCookie -->|No| CheckHeader{Authorization Header Present}
+    CheckHeader -->|Yes| TokenPrefix{Token Prefix}
+    TokenPrefix -->|PAT Prefix| ValidatePAT[BLAKE3 Lookup in PAT Table] --> ExtractUserPAT[Find Active User] --> PATAuth[Authenticated Token]
+    TokenPrefix -->|Session Prefix| ValidateSession[BLAKE3 Lookup in Sessions Table] --> ExtractUserSession[Find Active User] --> SessionAuth
+    CheckHeader -->|No| Return401
+    ValidateCookie -->|Invalid| CheckHeader
+    ValidatePAT -->|Invalid| Return401
+    ValidateSession -->|Invalid| Return401
 ```
 
 ---
@@ -202,8 +202,8 @@ flowchart LR
     Request[API Endpoint Request] --> RequiredPerm[Required Permission Scope]
     RequiredPerm --> AccessEvaluator{Permission Granted}
     GlobalPermissions --> AccessEvaluator
-    AccessEvaluator -- Yes --> Allow[Execute Handler]
-    AccessEvaluator -- No --> Deny[HTTP 403 Forbidden]
+    AccessEvaluator -->|Yes| Allow[Execute Handler]
+    AccessEvaluator -->|No| Deny[HTTP 403 Forbidden]
 ```
 
 ---

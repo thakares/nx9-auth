@@ -7,22 +7,29 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
 jobs:
   test:
-    name: Rust ${{ matrix.rust }}
+    name: Rust CI
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         rust:
           - stable
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -33,14 +40,53 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Check formatting
-        run: cargo fmt --check
+      - name: Environment Information
+        run: |
+          echo "=== Git ==="
+          git rev-parse HEAD
+          git log --oneline -1
+          git status
 
-      - name: Run Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+          echo
+          echo "=== Rust ==="
+          rustc --version
+          cargo --version
 
-      - name: Run Tests
-        run: cargo test --workspace --all-features
+          echo
+          echo "=== System ==="
+          uname -a
 
-      - name: Release Build
-        run: cargo build --release --workspace
+          echo
+          echo "=== Environment ==="
+          env | sort
+
+      - name: Verify formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-features --all-targets -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace --all-features --verbose
+
+      - name: Run tests
+        run: cargo test --workspace --all-features --verbose -- --nocapture
+
+      - name: Build release
+        run: cargo build --release --workspace --all-features
+
+      - name: Upload test databases
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-databases
+          path: target/*.db
+          if-no-files-found: ignore
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: target-directory
+          path: target
+          if-no-files-found: ignore

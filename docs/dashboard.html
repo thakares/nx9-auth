@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NX9-Auth — Identity & Access Management Dashboard</title>
+  <meta name="description" content="Standalone HTML5/CSS3/JS interactive control plane and authentication playground for nx9-auth IAM." />
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    /* ==========================================================================
+       1. Modern CSS Variables & Responsive Theme System (Dark & Light)
+       ========================================================================== */
+    :root[data-theme="dark"] {
+      --bg-base: #0b0f19;
+      --bg-surface: #111827;
+      --bg-surface-elevated: #1f2937;
+      --bg-glass: rgba(17, 24, 39, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-color-hover: rgba(99, 102, 241, 0.4);
+      
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --text-subtle: #6b7280;
+      
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-glow: rgba(99, 102, 241, 0.25);
+      
+      --accent: #8b5cf6;
+      --success: #10b981;
+      --success-glow: rgba(16, 185, 129, 0.2);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --info: #06b6d4;
+
+      --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      --code-bg: #030712;
+    }
+
+    :root[data-theme="light"] {
+      --bg-base: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-elevated: #f1f5f9;
+      --bg-glass: rgba(255, 255, 255, 0.85);
+      --border-color: rgba(0, 0, 0, 0.08);
+      --border-color-hover: rgba(99, 102, 241, 0.5);
+      
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+      
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-glow: rgba(79, 70, 229, 0.15);
+      
+      --accent: #7c3aed;
+      --success: #059669;
+      --success-glow: rgba(5, 150, 105, 0.15);
+      --warning: #d97706;
+      --danger: #dc2626;
+      --info: #0891b2;
+
+      --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+      --code-bg: #0f172a;
+    }
+
+    /* ==========================================================================
+       2. Global Styles & Typography
+       ========================================================================== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Layout Containers */
+    .app-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1.5rem 2rem 4rem 2rem;
+    }
+
+    /* ==========================================================================
+       3. Header & Navigation Component
+       ========================================================================== */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      background-color: var(--bg-glass);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 2rem;
+    }
+
+    .nav-wrapper {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .brand-text h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .brand-text span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.9rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+    }
+
+    .nav-links a:hover, .nav-links a.active {
+      color: var(--primary);
+      background-color: var(--bg-surface-elevated);
+    }
+
+    /* Theme Switcher Button */
+    .theme-toggle-btn {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.5rem 0.9rem;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .theme-toggle-btn:hover {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px var(--primary-glow);
+    }
+
+    /* ==========================================================================
+       4. Hero & System Status Banner
+       ========================================================================== */
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.04) 100%);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 2rem;
+      margin-top: 2rem;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 2rem;
+      box-shadow: var(--card-shadow);
+    }
+
+    .hero-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.5rem;
+    }
+
+    .hero-sub {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 650px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      background: var(--success-glow);
+      color: var(--success);
+      font-weight: 600;
+      font-size: 0.85rem;
+      border: 1px solid var(--success);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* ==========================================================================
+       5. Dashboard Metrics Grid
+       ========================================================================== */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2rem;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      border-color: var(--border-color-hover);
+      transform: translateY(-2px);
+    }
+
+    .card-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-subtle);
+      font-weight: 700;
+    }
+
+    .card-val {
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin: 0.5rem 0;
+      letter-spacing: -0.02em;
+    }
+
+    .card-footer {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* ==========================================================================
+       6. Interactive Authentication Playground Section
+       ========================================================================== */
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin: 3rem 0 1.25rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .playground-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .playground-layout {
+        grid-template-columns: 1fr;
+      }
+      .hero-banner {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+      color: var(--text-muted);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-main);
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: #ffffff;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+
+    .btn-primary:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface-elevated);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--primary);
+    }
+
+    /* Response Inspector Box */
+    .inspector-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      color: #e2e8f0;
+      font-size: 0.85rem;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .inspector-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .badge-status {
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .badge-200 { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .badge-401 { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .badge-303 { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+
+    .json-code {
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #38bdf8;
+      overflow-y: auto;
+      flex-grow: 1;
+    }
+
+    /* ==========================================================================
+       7. Security & Compliance Scoreboard
+       ========================================================================== */
+    .security-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1.25rem;
+      margin-top: 1rem;
+    }
+
+    .sec-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1.25rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+    }
+
+    .sec-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      font-size: 1.25rem;
+      background: var(--primary-glow);
+      color: var(--primary);
+    }
+
+    .sec-detail h4 {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .sec-detail p {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+    }
+
+    /* ==========================================================================
+       8. API Surface Reference Table
+       ========================================================================== */
+    .table-wrapper {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-top: 1rem;
+      box-shadow: var(--card-shadow);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background: var(--bg-surface-elevated);
+      padding: 1rem 1.25rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .method-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .method-get { background: rgba(6, 182, 212, 0.15); color: var(--info); }
+    .method-post { background: rgba(16, 185, 129, 0.15); color: var(--success); }
+    .method-put { background: rgba(245, 158, 11, 0.15); color: var(--warning); }
+    .method-delete { background: rgba(239, 68, 68, 0.15); color: var(--danger); }
+
+    /* Footer */
+    footer {
+      margin-top: 4rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+      color: var(--text-subtle);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sticky Header Navigation -->
+  <header>
+    <div class="nav-wrapper">
+      <a href="#" class="brand">
+        <div class="brand-logo">N9</div>
+        <div class="brand-text">
+          <h1>nx9-auth</h1>
+          <span>Identity & Access Management</span>
+        </div>
+      </a>
+      <div class="nav-actions">
+        <ul class="nav-links">
+          <li><a href="#status" class="active">Overview</a></li>
+          <li><a href="#playground">Auth Simulator</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#api">API Reference</a></li>
+        </ul>
+        <button id="themeToggle" class="theme-toggle-btn" aria-label="Toggle Theme">
+          <span id="themeIcon">🌙</span>
+          <span id="themeLabel">Dark Mode</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-container">
+
+    <!-- Hero & Status Banner -->
+    <section id="status" class="hero-banner">
+      <div>
+        <div class="status-badge">
+          <div class="pulse-dot"></div>
+          <span>System Health: Operational</span>
+        </div>
+        <h2 class="hero-title" style="margin-top: 0.75rem;">Identity & Access Control Center</h2>
+        <p class="hero-sub">
+          High-performance, zero-Node.js Rust IAM server featuring Argon2id password hashing, BLAKE3 token hashing, and strict OWASP security controls.
+        </p>
+      </div>
+      <div>
+        <button class="btn btn-primary" onclick="simulateLoginSuccess()">
+          ⚡ Test Admin Session
+        </button>
+      </div>
+    </section>
+
+    <!-- Metrics Cards Grid -->
+    <section class="metrics-grid">
+      <div class="card">
+        <div class="card-label">Active Engine</div>
+        <div class="card-val" style="color: var(--primary);">Axum / Tokio</div>
+        <div class="card-footer"><span>⚡</span> Pure Rust Non-Blocking I/O</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Password Protection</div>
+        <div class="card-val" style="color: var(--accent);">Argon2id</div>
+        <div class="card-footer"><span>🛡️</span> Memory-Hard Key Derivation</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Token Hashing</div>
+        <div class="card-val" style="color: var(--success);">BLAKE3</div>
+        <div class="card-footer"><span>🔒</span> Hashed Opaque Storage at Rest</div>
+      </div>
+      <div class="card">
+        <div class="card-label">UI Architecture</div>
+        <div class="card-val" style="color: var(--info);">Dioxus WASM</div>
+        <div class="card-footer"><span>🌐</span> Zero JS Runtime Overhead</div>
+      </div>
+    </section>
+
+    <!-- Interactive Authentication Playground -->
+    <section id="playground">
+      <h3 class="section-title">
+        <span>🧪</span> Authentication Simulator & Protocol Inspector
+      </h3>
+
+      <div class="playground-layout">
+        <!-- Form Controls -->
+        <div class="card">
+          <h4 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Simulate API Request</h4>
+          
+          <div class="form-group">
+            <label class="form-label" for="simEndpoint">Select Auth Endpoint & Protocol</label>
+            <select id="simEndpoint" class="form-control" onchange="updatePayloadTemplate()">
+              <option value="post_login">POST /api/v1/auth/login (JSON Body)</option>
+              <option value="get_me">GET /api/v1/auth/me (Cookie & Bearer Header)</option>
+              <option value="get_leak">GET /login?username=admin&password=sec (Sanitizer 303 Check)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="simUsername">Username</label>
+            <input type="text" id="simUsername" class="form-control" value="admin" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="simPassword">Password</label>
+            <input type="password" id="simPassword" class="form-control" value="Password123!" />
+          </div>
+
+          <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+            <button class="btn btn-primary" onclick="runSimulatedRequest()">
+              🚀 Send Request
+            </button>
+            <button class="btn btn-secondary" onclick="resetSimulator()">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Response Inspector -->
+        <div class="inspector-box">
+          <div class="inspector-header">
+            <span style="font-weight: 700; font-size: 0.85rem; color: #94a3b8;">RESPONSE INSPECTOR</span>
+            <span id="inspectBadge" class="badge-status badge-200">HTTP 200 OK</span>
+          </div>
+          <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem;" id="inspectHeaders">
+            Content-Type: application/json | Cache-Control: no-store
+          </div>
+          <pre id="inspectCode" class="json-code">{
+  "status": "ready",
+  "message": "Click 'Send Request' to execute simulated request."
+}</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- Security & Hardening Scoreboard -->
+    <section id="security">
+      <h3 class="section-title">
+        <span>🛡️</span> Security & Compliance Architecture
+      </h3>
+
+      <div class="security-grid">
+        <div class="sec-item">
+          <div class="sec-icon">🔑</div>
+          <div class="sec-detail">
+            <h4>Timing-Attack Mitigation</h4>
+            <p>Non-enumerating authentication failures with constant-time dummy Argon2id execution delays for unknown users.</p>
+          </div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">🌐</div>
+          <div class="sec-detail">
+            <h4>Strict Content Security Policy</h4>
+            <p>Hardened CSP (<code>script-src 'self' 'wasm-unsafe-eval'</code>) with zero inline script execution and zero <code>javascript:</code> URIs.</p>
+          </div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">🍪</div>
+          <div class="sec-detail">
+            <h4>HttpOnly Cookie Protection</h4>
+            <p>Dual-mode cookie authentication featuring <code>HttpOnly</code>, <code>SameSite=Lax</code>, and automatic <code>Cache-Control: no-store</code>.</p>
+          </div>
+        </div>
+        <div class="sec-item">
+          <div class="sec-icon">⚡</div>
+          <div class="sec-detail">
+            <h4>In-Memory IP Rate Limiter</h4>
+            <p>Lock-free exponential backoff lockout penalties managed via concurrent <code>DashMap</code> tracking.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Surface Reference -->
+    <section id="api">
+      <h3 class="section-title">
+        <span>📚</span> Core REST API Surface Reference
+      </h3>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint Path</th>
+              <th>Guard / Authentication</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="method-badge method-get">GET</span></td>
+              <td><code>/health</code></td>
+              <td>Public</td>
+              <td>System and database health diagnostic check.</td>
+            </tr>
+            <tr>
+              <td><span class="method-badge method-get">GET</span></td>
+              <td><code>/version</code></td>
+              <td>Public</td>
+              <td>Returns binary version and build target information.</td>
+            </tr>
+            <tr>
+              <td><span class="method-badge method-post">POST</span></td>
+              <td><code>/api/v1/auth/login</code></td>
+              <td>Rate Limiter</td>
+              <td>JSON login. Issues session cookies & Bearer access tokens.</td>
+            </tr>
+            <tr>
+              <td><span class="method-badge method-get">GET</span></td>
+              <td><code>/api/v1/auth/me</code></td>
+              <td>AuthUser (Cookie/Bearer)</td>
+              <td>Resolves current identity, assigned roles, and permission scopes.</td>
+            </tr>
+            <tr>
+              <td><span class="method-badge method-post">POST</span></td>
+              <td><code>/api/v1/auth/logout</code></td>
+              <td>AuthUser</td>
+              <td>Revokes active session and invalidates HttpOnly cookies.</td>
+            </tr>
+            <tr>
+              <td><span class="method-badge method-get">GET</span></td>
+              <td><code>/api/v1/users</code></td>
+              <td>AuthUser (Admin)</td>
+              <td>Paginated search and listing of registered platform users.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>NX9-Auth IAM — Dual-Licensed under Apache 2.0 & MIT — Built with Pure Rust & WebAssembly</p>
+    </footer>
+
+  </div>
+
+  <!-- Interactive JavaScript Application Logic -->
+  <script>
+    /* ==========================================================================
+       Theme Toggle System (Dark / Light with Local Storage Persistence)
+       ========================================================================== */
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+    const themeLabel = document.getElementById('themeLabel');
+    const htmlElement = document.documentElement;
+
+    function setTheme(theme) {
+      htmlElement.setAttribute('data-theme', theme);
+      localStorage.setItem('nx9_theme', theme);
+      if (theme === 'dark') {
+        themeIcon.textContent = '🌙';
+        themeLabel.textContent = 'Dark Mode';
+      } else {
+        themeIcon.textContent = '☀️';
+        themeLabel.textContent = 'Light Mode';
+      }
+    }
+
+    // Initialize Theme Preferences
+    const savedTheme = localStorage.getItem('nx9_theme') || 
+      (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    setTheme(savedTheme);
+
+    themeToggleBtn.addEventListener('click', () => {
+      const currentTheme = htmlElement.getAttribute('data-theme');
+      setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+    });
+
+    /* ==========================================================================
+       Interactive Simulator & Inspector Logic
+       ========================================================================== */
+    const simEndpoint = document.getElementById('simEndpoint');
+    const simUsername = document.getElementById('simUsername');
+    const simPassword = document.getElementById('simPassword');
+    const inspectBadge = document.getElementById('inspectBadge');
+    const inspectHeaders = document.getElementById('inspectHeaders');
+    const inspectCode = document.getElementById('inspectCode');
+
+    function updatePayloadTemplate() {
+      const mode = simEndpoint.value;
+      if (mode === 'get_me') {
+        inspectBadge.className = 'badge-status badge-200';
+        inspectBadge.textContent = 'HTTP 200 OK';
+        inspectHeaders.textContent = 'Authorization: Bearer st_7f8a9b... | Cookie: nx9_session=st_7f8a9b...';
+        inspectCode.textContent = JSON.stringify({
+          user: { id: "usr_01H8X2Y3Z4", username: simUsername.value || "admin", status: "active" },
+          roles: ["admin"],
+          permissions: ["*"]
+        }, null, 2);
+      } else if (mode === 'get_leak') {
+        inspectBadge.className = 'badge-status badge-303';
+        inspectBadge.textContent = 'HTTP 303 See Other';
+        inspectHeaders.textContent = 'Location: /login | Cache-Control: no-store (Sanitizer Activated)';
+        inspectCode.textContent = JSON.stringify({
+          action: "Sanitizer Redirect",
+          cause: "Credentials detected in GET query parameters",
+          sanitized_location: "/login"
+        }, null, 2);
+      } else {
+        inspectBadge.className = 'badge-status badge-200';
+        inspectBadge.textContent = 'HTTP 200 OK';
+        inspectHeaders.textContent = 'Content-Type: application/json | Cache-Control: no-store';
+        inspectCode.textContent = JSON.stringify({
+          status: "ready",
+          endpoint: "POST /api/v1/auth/login"
+        }, null, 2);
+      }
+    }
+
+    function runSimulatedRequest() {
+      const mode = simEndpoint.value;
+      const u = simUsername.value.trim();
+      const p = simPassword.value;
+
+      if (!u || !p) {
+        inspectBadge.className = 'badge-status badge-401';
+        inspectBadge.textContent = 'HTTP 401 Unauthorized';
+        inspectHeaders.textContent = 'Content-Type: application/json';
+        inspectCode.textContent = JSON.stringify({
+          error: "Invalid username or password.",
+          code: 401
+        }, null, 2);
+        return;
+      }
+
+      if (mode === 'post_login') {
+        inspectBadge.className = 'badge-status badge-200';
+        inspectBadge.textContent = 'HTTP 200 OK';
+        inspectHeaders.textContent = 'Set-Cookie: nx9_session=st_8a9f...; HttpOnly; SameSite=Lax | Content-Type: application/json';
+        inspectCode.textContent = JSON.stringify({
+          access_token: "st_8a9f0c1d2e3f4a5b6c7d8e9f0a1b2c3d",
+          refresh_token: "rt_1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d",
+          expires_in: 86400,
+          token_type: "Bearer",
+          user: { id: "usr_01H8X2Y3Z4", username: u, status: "active" }
+        }, null, 2);
+      } else if (mode === 'get_me') {
+        inspectBadge.className = 'badge-status badge-200';
+        inspectBadge.textContent = 'HTTP 200 OK';
+        inspectHeaders.textContent = 'Authorization: Bearer st_8a9f... | Content-Type: application/json';
+        inspectCode.textContent = JSON.stringify({
+          user: { id: "usr_01H8X2Y3Z4", username: u, status: "active" },
+          roles: ["admin"],
+          permissions: ["*"]
+        }, null, 2);
+      } else if (mode === 'get_leak') {
+        inspectBadge.className = 'badge-status badge-303';
+        inspectBadge.textContent = 'HTTP 303 See Other';
+        inspectHeaders.textContent = 'Location: /login | Cache-Control: no-store (Sanitizer Interception)';
+        inspectCode.textContent = JSON.stringify({
+          notice: "Query string credentials intercepted by serve_ui fallback",
+          redirect_to: "/login",
+          headers: "Cache-Control: no-store"
+        }, null, 2);
+      }
+    }
+
+    function simulateLoginSuccess() {
+      simEndpoint.value = 'post_login';
+      simUsername.value = 'admin';
+      simPassword.value = 'Password123!';
+      runSimulatedRequest();
+    }
+
+    function resetSimulator() {
+      simEndpoint.value = 'post_login';
+      simUsername.value = 'admin';
+      simPassword.value = 'Password123!';
+      updatePayloadTemplate();
+    }
+  </script>
+</body>
+</html>

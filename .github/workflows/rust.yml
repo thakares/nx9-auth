@@ -1,22 +1,46 @@
-- uses: actions/checkout@v4
+name: Rust CI
 
-- name: Install Rust
-  uses: dtolnay/rust-toolchain@stable
-  with:
-    toolchain: ${{ matrix.rust }}
-    components: rustfmt, clippy
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
-- name: Cache Cargo
-  uses: Swatinem/rust-cache@v2
+permissions:
+  contents: read
 
-- name: Check formatting
-  run: cargo fmt --check
+jobs:
+  test:
+    name: Rust ${{ matrix.rust }}
+    runs-on: ubuntu-latest
 
-- name: Clippy
-  run: cargo clippy --all-targets -- -D warnings
+    strategy:
+      matrix:
+        rust:
+          - stable
 
-- name: Tests
-  run: cargo test --all
+    steps:
+      - uses: actions/checkout@v4
 
-- name: Release build
-  run: cargo build --release
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run Tests
+        run: cargo test --workspace --all-features
+
+      - name: Release Build
+        run: cargo build --release --workspace

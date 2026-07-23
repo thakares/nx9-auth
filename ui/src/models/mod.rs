@@ -124,7 +124,11 @@ pub struct ApplicationView {
     #[serde(default)]
     pub client_id: String,
     #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
     pub enabled: bool,
+    #[serde(default)]
+    pub credentials_configured: bool,
     #[serde(default)]
     pub redirect_urls: Vec<String>,
     #[serde(default)]
@@ -139,6 +143,17 @@ pub struct ApplicationView {
 pub struct ApplicationsResponse {
     #[serde(default)]
     pub applications: Vec<ApplicationView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct CreateApplicationResponse {
+    pub application: ApplicationView,
+    pub client_secret: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct RotateSecretResponse {
+    pub client_secret: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

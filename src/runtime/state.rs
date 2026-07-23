@@ -70,19 +70,22 @@ impl fmt::Display for RuntimeState {
     }
 }
 
+use std::sync::Arc;
+
 /// Lock-free atomic runtime state container.
 ///
 /// Uses `AtomicU8` with `compare_exchange` to ensure deterministic,
 /// race-free state transitions without mutex contention.
+#[derive(Clone)]
 pub struct AtomicRuntimeState {
-    state: AtomicU8,
+    state: Arc<AtomicU8>,
 }
 
 impl AtomicRuntimeState {
     /// Create a new state machine in the `Initializing` state.
     pub fn new() -> Self {
         Self {
-            state: AtomicU8::new(RuntimeState::Initializing as u8),
+            state: Arc::new(AtomicU8::new(RuntimeState::Initializing as u8)),
         }
     }
 
@@ -91,15 +94,32 @@ impl AtomicRuntimeState {
         RuntimeState::from_u8(self.state.load(Ordering::Acquire)).unwrap_or(RuntimeState::Stopped)
     }
 
+    /// Check if a state transition follows the valid lifecycle graph.
+    pub fn is_valid_transition(expected: RuntimeState, new: RuntimeState) -> bool {
+        (new as u8) == (expected as u8) + 1
+    }
+
     /// Attempt an atomic state transition from `expected` to `new`.
     ///
-    /// Returns `Ok(new)` if the transition succeeded, or `Err(actual)` if the
-    /// current state did not match `expected`.
+    /// The transition is validated against the lifecycle graph. Returns `Ok(new)`
+    /// if the transition succeeded, or `Err(actual)` if the transition was invalid
+    /// or the current state did not match `expected`.
     pub fn transition(
         &self,
         expected: RuntimeState,
         new: RuntimeState,
     ) -> Result<RuntimeState, RuntimeState> {
+        if !Self::is_valid_transition(expected, new) {
+            let actual = self.load();
+            tracing::warn!(
+                expected = %expected,
+                actual = %actual,
+                target = %new,
+                "illegal lifecycle graph transition rejected"
+            );
+            return Err(actual);
+        }
+
         match self.state.compare_exchange(
             expected as u8,
             new as u8,
@@ -123,13 +143,39 @@ impl AtomicRuntimeState {
         }
     }
 
-    /// Unconditionally advance the state. Used during forced shutdown when
-    /// intermediate states may have been skipped.
-    pub fn force_set(&self, new: RuntimeState) {
-        let prev = self.state.swap(new as u8, Ordering::AcqRel);
-        let prev_state = RuntimeState::from_u8(prev).unwrap_or(RuntimeState::Stopped);
-        if prev_state != new {
-            tracing::info!(from = %prev_state, to = %new, "runtime state forced");
+    /// Unconditionally advance the state forward. Used during emergency recovery
+    /// when intermediate states are skipped.
+    ///
+    /// Restricted to `pub(crate)` visibility to preserve lifecycle graph invariants.
+    /// Guarantees monotonic forward movement (`new >= current_state`) and rejects
+    /// backward state regressions.
+    pub(crate) fn force_advance(&self, new: RuntimeState) {
+        loop {
+            let current = self.load();
+            if (new as u8) < (current as u8) {
+                tracing::warn!(
+                    current = %current,
+                    target = %new,
+                    "rejected state regression in force_advance"
+                );
+                break;
+            }
+            if current == new {
+                break;
+            }
+            if self
+                .state
+                .compare_exchange(
+                    current as u8,
+                    new as u8,
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                )
+                .is_ok()
+            {
+                tracing::info!(from = %current, to = %new, "runtime state force advanced");
+                break;
+            }
         }
     }
 
@@ -180,9 +226,25 @@ mod tests {
     }
 
     #[test]
-    fn test_force_set() {
+    fn test_invalid_graph_transition_rejected() {
         let state = AtomicRuntimeState::new();
-        state.force_set(RuntimeState::ClosingResources);
+        // Initializing -> ClosingResources is invalid in the normal graph
+        assert!(
+            state
+                .transition(RuntimeState::Initializing, RuntimeState::ClosingResources)
+                .is_err()
+        );
+        assert_eq!(state.load(), RuntimeState::Initializing);
+    }
+
+    #[test]
+    fn test_force_advance() {
+        let state = AtomicRuntimeState::new();
+        state.force_advance(RuntimeState::ClosingResources);
+        assert_eq!(state.load(), RuntimeState::ClosingResources);
+
+        // State regression must be rejected
+        state.force_advance(RuntimeState::Initializing);
         assert_eq!(state.load(), RuntimeState::ClosingResources);
     }
 

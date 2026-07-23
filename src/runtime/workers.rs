@@ -6,6 +6,8 @@ use std::time::Duration;
 
 use tokio::task::JoinSet;
 
+use super::ShutdownCoordinator;
+
 pub struct TaskGroup {
     name: String,
     tasks: JoinSet<()>,
@@ -100,10 +102,103 @@ impl WorkerManager {
         }
     }
 
-    pub async fn shutdown_all(&mut self, timeout: Duration) {
+    pub async fn drain_all(&mut self) {
         for group in self.groups.values_mut() {
-            group.shutdown(timeout).await;
+            group.abort_all();
+            while group.tasks.join_next().await.is_some() {}
         }
+    }
+
+    /// Shut down all worker groups concurrently under a single global deadline,
+    /// while observing live forced shutdown escalation.
+    pub async fn shutdown_all_with_coordinator(
+        &mut self,
+        timeout: Duration,
+        coordinator: Option<&ShutdownCoordinator>,
+    ) {
+        let active = self.active_tasks();
+        if active == 0 {
+            return;
+        }
+
+        tracing::info!(
+            active_tasks = active,
+            timeout_secs = timeout.as_secs(),
+            "shutting down background worker task groups under global deadline"
+        );
+
+        let is_already_forced = coordinator.map(|c| c.is_forced()).unwrap_or(false);
+        if is_already_forced {
+            tracing::warn!("forced shutdown active; aborting all worker tasks immediately");
+            self.drain_all().await;
+            return;
+        }
+
+        let groups = std::mem::take(&mut self.groups);
+        let mut group_joiners = JoinSet::new();
+        let mut group_map = HashMap::new();
+
+        for (name, mut group) in groups {
+            group_joiners.spawn(async move {
+                while group.tasks.join_next().await.is_some() {}
+                (name, group)
+            });
+        }
+
+        let join_all_fut = async {
+            while let Some(res) = group_joiners.join_next().await {
+                if let Ok((name, group)) = res {
+                    group_map.insert(name, group);
+                }
+            }
+        };
+
+        let forced_fut = async {
+            if let Some(coord) = coordinator {
+                coord.forced_cancelled().await;
+            } else {
+                std::future::pending::<()>().await;
+            }
+        };
+
+        tokio::select! {
+            _ = join_all_fut => {
+                tracing::info!("all worker task groups shut down cleanly");
+            }
+            _ = tokio::time::sleep(timeout) => {
+                tracing::warn!("global worker shutdown timeout expired; aborting remaining tasks");
+                group_joiners.abort_all();
+                while let Some(res) = group_joiners.join_next().await {
+                    if let Ok((name, mut group)) = res {
+                        group.abort_all();
+                        group_map.insert(name, group);
+                    }
+                }
+            }
+            _ = forced_fut => {
+                tracing::warn!("live forced shutdown escalation received during worker wait; aborting remaining tasks immediately");
+                group_joiners.abort_all();
+                while let Some(res) = group_joiners.join_next().await {
+                    if let Ok((name, mut group)) = res {
+                        group.abort_all();
+                        group_map.insert(name, group);
+                    }
+                }
+            }
+        }
+
+        for group in group_map.values_mut() {
+            if !group.is_empty() {
+                group.abort_all();
+                while group.tasks.join_next().await.is_some() {}
+            }
+        }
+
+        self.groups = group_map;
+    }
+
+    pub async fn shutdown_all(&mut self, timeout: Duration) {
+        self.shutdown_all_with_coordinator(timeout, None).await;
     }
 }
 

@@ -40,7 +40,12 @@ impl HookRegistry {
         }
 
         let mut indices: Vec<usize> = (0..self.hooks.len()).collect();
-        indices.sort_by_key(|&i| self.hooks[i].priority());
+        indices.sort_by(
+            |&a, &b| match self.hooks[a].priority().cmp(&self.hooks[b].priority()) {
+                std::cmp::Ordering::Equal => a.cmp(&b),
+                ord => ord,
+            },
+        );
 
         for i in indices {
             let hook = &self.hooks[i];

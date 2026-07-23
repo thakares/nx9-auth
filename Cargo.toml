@@ -73,6 +73,8 @@ dashmap = "6.0"
 
 # Utilities
 hex = "0.4"
+url = "2.5"
+subtle = "2.6"
 
 [profile.release]
 opt-level = 3

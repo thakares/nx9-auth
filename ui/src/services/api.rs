@@ -59,9 +59,25 @@ fn client() -> Client {
     Client::new()
 }
 
+pub trait RequestBuilderExtHelper {
+    fn with_credentials_include(self) -> Self;
+}
+
+impl RequestBuilderExtHelper for reqwest::RequestBuilder {
+    #[cfg(target_arch = "wasm32")]
+    fn with_credentials_include(self) -> Self {
+        self.fetch_credentials_include()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn with_credentials_include(self) -> Self {
+        self
+    }
+}
+
 /// Attach credentials + optional bearer session token.
 fn authorize(builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-    let builder = builder.fetch_credentials_include();
+    let builder = builder.with_credentials_include();
     if let Some(token) = session::load_access_token() {
         builder.header("Authorization", format!("Bearer {token}"))
     } else {
@@ -180,7 +196,7 @@ pub async fn login(username: &str, password: &str) -> Result<LoginResponse, ApiE
     let url = api_url("/auth/login");
     let resp = client()
         .post(&url)
-        .fetch_credentials_include()
+        .with_credentials_include()
         .header("Accept", "application/json")
         .header("Content-Type", "application/json")
         .json(&body)
@@ -369,23 +385,49 @@ pub async fn list_applications() -> Result<Vec<ApplicationView>, ApiError> {
     Ok(r.applications)
 }
 
-pub async fn create_application(name: &str, slug: &str) -> Result<ApplicationView, ApiError> {
-    let body = serde_json::json!({ "name": name, "slug": slug });
-    let r: Value = post_json("/applications", &body).await?;
-    serde_json::from_value(r.get("application").cloned().unwrap_or(Value::Null))
-        .map_err(|e| ApiError::Other(e.to_string()))
+pub async fn create_application(
+    name: &str,
+    slug: &str,
+    description: Option<&str>,
+    redirect_urls: Option<Vec<String>>,
+    scopes: Option<Vec<String>>,
+) -> Result<CreateApplicationResponse, ApiError> {
+    let body = serde_json::json!({
+        "name": name,
+        "slug": slug,
+        "description": description,
+        "redirect_urls": redirect_urls,
+        "scopes": scopes,
+    });
+    post_json("/applications", &body).await
 }
 
 pub async fn update_application(
     id: &str,
     name: &str,
     slug: &str,
+    description: Option<&str>,
+    redirect_urls: Option<Vec<String>>,
+    scopes: Option<Vec<String>>,
     enabled: bool,
 ) -> Result<ApplicationView, ApiError> {
-    let body = serde_json::json!({ "name": name, "slug": slug, "enabled": enabled });
+    let body = serde_json::json!({
+        "name": name,
+        "slug": slug,
+        "description": description,
+        "redirect_urls": redirect_urls,
+        "scopes": scopes,
+        "enabled": enabled,
+    });
     let r: Value = patch_json(&format!("/applications/{id}"), &body).await?;
     serde_json::from_value(r.get("application").cloned().unwrap_or(Value::Null))
         .map_err(|e| ApiError::Other(e.to_string()))
+}
+
+pub async fn rotate_application_secret(id: &str) -> Result<String, ApiError> {
+    let r: RotateSecretResponse =
+        post_json(&format!("/applications/{id}/secret"), &serde_json::json!({})).await?;
+    Ok(r.client_secret)
 }
 
 pub async fn delete_application(id: &str) -> Result<(), ApiError> {

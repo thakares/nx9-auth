@@ -82,6 +82,10 @@ pub fn build(state: AppState) -> Router {
                 .patch(applications::update_application)
                 .delete(applications::delete_application),
         )
+        .route(
+            "/applications/{id}/secret",
+            post(applications::rotate_application_secret),
+        )
         // Service accounts
         .route(
             "/service-accounts",

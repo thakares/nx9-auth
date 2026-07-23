@@ -96,22 +96,41 @@ pub trait SessionsRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait ApplicationsRepository: Send + Sync {
-    async fn create(
+    #[allow(clippy::too_many_arguments)]
+    async fn create_with_audit(
         &self,
         id: &str,
         tenant_id: &str,
         name: &str,
         slug: &str,
+        client_id: &str,
+        client_secret_hash: Option<&str>,
+        description: Option<&str>,
+        redirect_uris: Option<&str>,
+        scopes: Option<&str>,
+        audit_event: Option<crate::audit::AuditEvent<'_>>,
     ) -> Result<Application, sqlx::Error>;
     async fn find_by_slug(&self, slug: &str) -> Result<Option<Application>, sqlx::Error>;
+    async fn find_by_client_id(&self, client_id: &str) -> Result<Option<Application>, sqlx::Error>;
     async fn find_by_id(&self, id: &str) -> Result<Option<Application>, sqlx::Error>;
     async fn list(&self, tenant_id: &str) -> Result<Vec<Application>, sqlx::Error>;
     async fn set_enabled(&self, id: &str, enabled: bool) -> Result<(), sqlx::Error>;
+    async fn update_secret_hash(&self, id: &str, secret_hash: &str) -> Result<(), sqlx::Error>;
+    async fn rotate_secret_with_audit(
+        &self,
+        id: &str,
+        secret_hash: &str,
+        audit_event: Option<crate::audit::AuditEvent<'_>>,
+    ) -> Result<(), sqlx::Error>;
+    #[allow(clippy::too_many_arguments)]
     async fn update(
         &self,
         id: &str,
         name: &str,
         slug: &str,
+        description: Option<&str>,
+        redirect_uris: Option<&str>,
+        scopes: Option<&str>,
         enabled: bool,
     ) -> Result<(), sqlx::Error>;
     async fn delete(&self, id: &str) -> Result<(), sqlx::Error>;

@@ -29,6 +29,8 @@ pub struct Application {
     pub signals: SignalManager,
     pub shutdown: ShutdownCoordinator,
     pub metrics: RuntimeMetrics,
+    pub local_addr: Option<std::net::SocketAddr>,
+    pub bound_port: Arc<std::sync::atomic::AtomicU16>,
 }
 
 impl Application {
@@ -82,52 +84,57 @@ impl Application {
         &self.metrics
     }
 
-    /// Force a runtime state update.
+    /// Force advance runtime state (monotonic, forward-only).
     pub fn set_state(&self, state: RuntimeState) {
-        self.state.force_set(state);
+        self.state.force_advance(state);
     }
 
     /// Perform graceful shutdown flow explicitly.
     pub async fn perform_shutdown(&mut self) -> Result<()> {
-        if !self.state.initiate_shutdown() {
-            if self.state.load().is_shutting_down() {
-                return Ok(());
+        let current_state = self.state.load();
+
+        if current_state == RuntimeState::Running {
+            let _ = self.state.initiate_shutdown();
+        } else if !current_state.is_shutting_down() {
+            self.state.force_advance(RuntimeState::Draining);
+        }
+
+        if self.state.load() == RuntimeState::Draining {
+            tracing::info!("draining active connections");
+            let _ = self
+                .state
+                .transition(RuntimeState::Draining, RuntimeState::StoppingWorkers);
+        }
+
+        if self.state.load() == RuntimeState::StoppingWorkers {
+            tracing::info!("stopping background workers");
+            self.workers
+                .shutdown_all_with_coordinator(Duration::from_secs(10), Some(&self.shutdown))
+                .await;
+            let _ = self
+                .state
+                .transition(RuntimeState::StoppingWorkers, RuntimeState::ExecutingHooks);
+        }
+
+        if self.state.load() == RuntimeState::ExecutingHooks {
+            tracing::info!("executing shutdown hooks");
+            self.hooks.execute_all().await;
+            let _ = self
+                .state
+                .transition(RuntimeState::ExecutingHooks, RuntimeState::ClosingResources);
+        }
+
+        if self.state.load() == RuntimeState::ClosingResources {
+            tracing::info!("closing database connection pool and resources");
+            if let Some(pool) = self.pool_handle.take() {
+                pool.close().await;
             }
-            self.state.force_set(RuntimeState::Draining);
+            let _ = self
+                .state
+                .transition(RuntimeState::ClosingResources, RuntimeState::Stopped);
         }
 
-        println!("Draining");
-        tracing::info!("draining active connections");
-
-        let _ = self
-            .state
-            .transition(RuntimeState::Draining, RuntimeState::StoppingWorkers);
-        println!("StoppingWorkers");
-        tracing::info!("stopping background workers");
-        self.workers.shutdown_all(Duration::from_secs(10)).await;
-
-        let _ = self
-            .state
-            .transition(RuntimeState::StoppingWorkers, RuntimeState::ExecutingHooks);
-        println!("ExecutingHooks");
-        tracing::info!("executing shutdown hooks");
-        self.hooks.execute_all().await;
-
-        let _ = self
-            .state
-            .transition(RuntimeState::ExecutingHooks, RuntimeState::ClosingResources);
-        println!("ClosingResources");
-        tracing::info!("closing database connection pool and resources");
-        if let Some(pool) = self.pool_handle.take() {
-            pool.close().await;
-        }
-
-        let _ = self
-            .state
-            .transition(RuntimeState::ClosingResources, RuntimeState::Stopped);
-        println!("Stopped");
         tracing::info!("application stopped cleanly");
-
         Ok(())
     }
 }
@@ -135,12 +142,10 @@ impl Application {
 #[async_trait::async_trait]
 impl Lifecycle for Application {
     async fn initialize(&mut self) -> Result<()> {
-        println!("Initializing");
         let _ = self
             .state
             .transition(RuntimeState::Initializing, RuntimeState::Starting);
 
-        println!("Starting");
         let config = match &self.config {
             Some(cfg) => cfg.clone(),
             None => {
@@ -179,8 +184,6 @@ impl Lifecycle for Application {
                 .transition(RuntimeState::Starting, RuntimeState::Running);
         }
 
-        println!("Running");
-
         let config = self.config.as_ref().cloned().unwrap_or_default();
         let addr_str = format!("{}:{}", config.server.host, config.server.port);
         let listener = tokio::net::TcpListener::bind(&addr_str)
@@ -188,7 +191,9 @@ impl Lifecycle for Application {
             .with_context(|| format!("failed to bind TCP listener to {addr_str}"))?;
 
         let local_addr = listener.local_addr()?;
-        println!("Listening on {}", local_addr);
+        self.local_addr = Some(local_addr);
+        self.bound_port
+            .store(local_addr.port(), std::sync::atomic::Ordering::Release);
         tracing::info!(address = %local_addr, "Listening on {}", local_addr);
 
         let router = match self.router.take() {
@@ -205,24 +210,42 @@ impl Lifecycle for Application {
 
         let signal_mgr = self.signals.clone();
         let shutdown_coord = self.shutdown.clone();
+        let state = self.state.clone();
 
-        let server = axum::serve(listener, router).with_graceful_shutdown(async move {
-            tokio::select! {
-                sig = signals::wait_for_shutdown_signal() => {
-                    tracing::info!(signal = sig, "received shutdown signal");
-                    signal_mgr.record_signal();
-                    shutdown_coord.cancel();
-                }
-                _ = shutdown_coord.cancelled() => {
-                    tracing::info!("shutdown coordinator cancelled");
-                }
-            }
+        let signal_task = tokio::spawn(signals::listen_for_signals(
+            signal_mgr,
+            shutdown_coord.clone(),
+            self.state.clone(),
+        ));
+
+        let graceful_token = shutdown_coord.token().clone();
+        let forced_token = shutdown_coord.forced_token().clone();
+
+        let state_for_shutdown = state.clone();
+        let server_fut = axum::serve(listener, router).with_graceful_shutdown(async move {
+            graceful_token.cancelled().await;
+            tracing::info!("graceful shutdown triggered; initiating HTTP connection draining");
+            let _ = state_for_shutdown.initiate_shutdown();
         });
 
-        if let Err(err) = server.await {
-            tracing::error!(error = %err, "HTTP server error");
+        let mut server_task = tokio::spawn(async move { server_fut.await });
+
+        tokio::select! {
+            res = &mut server_task => {
+                match res {
+                    Ok(Ok(())) => tracing::info!("HTTP server stopped gracefully"),
+                    Ok(Err(err)) => tracing::error!(error = %err, "HTTP server error"),
+                    Err(join_err) => tracing::debug!(error = %join_err, "HTTP server task finished"),
+                }
+            }
+            _ = forced_token.cancelled() => {
+                tracing::warn!("live forced shutdown escalation received during HTTP drain; aborting server task immediately");
+                server_task.abort();
+                let _ = server_task.await;
+            }
         }
 
+        signal_task.abort();
         self.perform_shutdown().await
     }
 

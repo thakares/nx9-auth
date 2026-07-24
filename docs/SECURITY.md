@@ -31,11 +31,26 @@ NX9-Auth is designed with a **security-first, privacy-first, zero-trust** archit
 - **Secret Rotation**: Administrator rotation immediately invalidates the previous client secret hash and generates a new secret.
 - **Dedicated Permissions**: Application mutations (`create`, `update`, `rotate_secret`, `enable_disable`, `delete`) require the `applications:manage` permission.
 
-## Audit Logging Security
+## Tenant Reassignment Safety & Audit Atomicity
+
+- **Option-A Tenant Isolation**: Users belong strictly to one tenant (`users.tenant_id`). Cross-tenant operations strictly check boundaries.
+- **Transactional Atomicity**: Tenant reassignment (`reassign_user_tenant_with_audit`) executes inside a single database transaction. Database update (`users.tenant_id`) and audit log record insertion (`user.tenant_reassigned` with `from_tenant_id` and `to_tenant_id`) commit together. If audit log insertion fails, database changes roll back completely.
+- **No-Op Reassignment**: Reassignment to the user's current tenant is a defined no-op that emits no audit log and avoids unnecessary database mutations.
+- **Concurrency & Locking Protection**: PostgreSQL uses `SELECT ... FOR UPDATE` row locking; SQLite uses write transactions and conditional updates (`WHERE tenant_id = expected`).
+- **Last-Admin Protection**: System administrator reassignment away from the default tenant is rejected if `count_admins() <= 1`.
+
+## Application Membership Security & Audit Atomicity
+
+- **Same-Tenant Enforcement**: Application membership requires user and application to share the exact same `tenant_id`. Cross-tenant membership is rejected.
+- **Transactional Atomicity**: Application membership mutations (add, role update, enable/disable, remove) execute in single transactions with audit log insertions; audit failure automatically rolls back the membership change.
+- **Strict Protocol Boundary**: Application authentication accepts only `client_id` + `client_secret`. Editable application slugs are never accepted as credential identities.
+
+## Audit Logging Security & Export
 
 Audit logs record critical identity lifecycle events while strictly redacting sensitive fields:
-- **Recorded Events**: Login success/failure, logout, password change, user creation/deletion, API token issuance/revocation, application creation/secret rotation/modification, role/permission assignments.
+- **Recorded Events**: Login success/failure, logout, password change, user creation/deletion, tenant reassignment, API token issuance/revocation, application creation/secret rotation/membership modification, role/permission assignments.
 - **Redaction Rules**: Plaintext passwords, password hashes, bearer tokens, refresh tokens, client secrets, client secret hashes, session secrets, and `Authorization` headers are **never** logged under any circumstances.
+- **Bounded CSV Export**: Audit log CSV export uses server-side audit search APIs bounded to a maximum of 5,000 records matching currently active query filters, preserving exact tenant/RBAC restrictions and RFC-4180 field escaping.
 
 ## Rate Limiting & Protection
 

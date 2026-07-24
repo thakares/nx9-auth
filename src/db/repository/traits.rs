@@ -1,7 +1,12 @@
 use crate::db::models::{
-    ApiToken, Application, AuditFilter, AuditLog, Group, Permission, RefreshToken, Role,
-    ServiceAccount, Session, Tenant, User, UserProfile,
+    ApiToken, Application, ApplicationMember, AuditFilter, AuditLog, GlobalSlug, Group, Permission,
+    RefreshToken, Role, ServiceAccount, Session, Tenant, User, UserProfile,
 };
+
+#[async_trait::async_trait]
+pub trait GlobalSlugsRepository: Send + Sync {
+    async fn find_by_slug(&self, slug: &str) -> Result<Option<GlobalSlug>, sqlx::Error>;
+}
 
 #[async_trait::async_trait]
 pub trait UsersRepository: Send + Sync {
@@ -16,6 +21,15 @@ pub trait UsersRepository: Send + Sync {
         password_hash: &str,
     ) -> Result<User, sqlx::Error>;
     async fn update_status(&self, id: &str, status: i32) -> Result<(), sqlx::Error>;
+    async fn update_user_tenant(&self, id: &str, tenant_id: &str) -> Result<(), sqlx::Error>;
+    async fn reassign_user_tenant_with_audit(
+        &self,
+        user_id: &str,
+        destination_tenant_id: &str,
+        actor_id: Option<&str>,
+        ip_address: Option<&str>,
+        user_agent: Option<&str>,
+    ) -> Result<(), sqlx::Error>;
     async fn update_password_hash(&self, id: &str, password_hash: &str) -> Result<(), sqlx::Error>;
     async fn set_last_login(&self, id: &str) -> Result<(), sqlx::Error>;
     async fn username_exists(&self, tenant_id: &str, username: &str) -> Result<bool, sqlx::Error>;
@@ -270,4 +284,70 @@ pub trait GroupsRepository: Send + Sync {
     async fn add_member(&self, group_id: &str, user_id: &str) -> Result<(), sqlx::Error>;
     async fn remove_member(&self, group_id: &str, user_id: &str) -> Result<(), sqlx::Error>;
     async fn count(&self, tenant_id: &str) -> Result<i64, sqlx::Error>;
+}
+
+/// Application membership repository (user ↔ application assignment).
+///
+/// Membership roles are lightweight metadata and do not modify global RBAC.
+#[async_trait::async_trait]
+pub trait ApplicationMembersRepository: Send + Sync {
+    async fn list_by_application(
+        &self,
+        application_id: &str,
+    ) -> Result<Vec<ApplicationMember>, sqlx::Error>;
+    async fn list_by_user(&self, user_id: &str) -> Result<Vec<ApplicationMember>, sqlx::Error>;
+    async fn find(
+        &self,
+        application_id: &str,
+        user_id: &str,
+    ) -> Result<Option<ApplicationMember>, sqlx::Error>;
+    async fn add(
+        &self,
+        id: &str,
+        application_id: &str,
+        user_id: &str,
+        role: &str,
+    ) -> Result<ApplicationMember, sqlx::Error>;
+    async fn update_role(
+        &self,
+        application_id: &str,
+        user_id: &str,
+        role: &str,
+    ) -> Result<(), sqlx::Error>;
+    async fn set_enabled(
+        &self,
+        application_id: &str,
+        user_id: &str,
+        enabled: bool,
+    ) -> Result<(), sqlx::Error>;
+    async fn remove(&self, application_id: &str, user_id: &str) -> Result<(), sqlx::Error>;
+
+    async fn add_with_audit(
+        &self,
+        id: &str,
+        application_id: &str,
+        user_id: &str,
+        role: &str,
+        audit_event: Option<crate::audit::AuditEvent<'_>>,
+    ) -> Result<ApplicationMember, sqlx::Error>;
+    async fn update_role_with_audit(
+        &self,
+        application_id: &str,
+        user_id: &str,
+        role: &str,
+        audit_event: Option<crate::audit::AuditEvent<'_>>,
+    ) -> Result<(), sqlx::Error>;
+    async fn set_enabled_with_audit(
+        &self,
+        application_id: &str,
+        user_id: &str,
+        enabled: bool,
+        audit_event: Option<crate::audit::AuditEvent<'_>>,
+    ) -> Result<(), sqlx::Error>;
+    async fn remove_with_audit(
+        &self,
+        application_id: &str,
+        user_id: &str,
+        audit_event: Option<crate::audit::AuditEvent<'_>>,
+    ) -> Result<(), sqlx::Error>;
 }

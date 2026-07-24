@@ -108,11 +108,13 @@ pub async fn create(
             "name and slug cannot be empty".into(),
         ));
     }
+    crate::identity::slug::validate_slug(slug)?;
+
     if let Some(ref uris) = redirect_uris {
         validate_redirect_uris(uris)?;
     }
     if provider
-        .applications()
+        .global_slugs()
         .find_by_slug(slug)
         .await
         .map_err(AppError::Database)?
@@ -312,16 +314,18 @@ pub async fn update(
             "name and slug cannot be empty".into(),
         ));
     }
+    crate::identity::slug::validate_slug(slug)?;
+
     if let Some(ref uris) = redirect_uris {
         validate_redirect_uris(uris)?;
     }
     if let Some(other) = provider
-        .applications()
+        .global_slugs()
         .find_by_slug(slug)
         .await
         .map_err(AppError::Database)?
     {
-        if other.id != id {
+        if other.entity_id != id || other.entity_type != "application" {
             return Err(AppError::Conflict(format!("slug '{slug}' already exists")));
         }
     }

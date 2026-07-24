@@ -3,7 +3,7 @@
 use crate::components::layout::AppLayout;
 use crate::pages::{
     about::AboutPage,
-    applications::ApplicationsPage,
+    applications::{ApplicationDetailPage, ApplicationsPage},
     audit::AuditPage,
     auth::{ForbiddenPage, LoginPage, UnauthorizedPage},
     dashboard::DashboardPage,
@@ -76,6 +76,9 @@ pub enum Route {
 
         #[route("/applications")]
         ApplicationsPage {},
+
+        #[route("/applications/:id")]
+        ApplicationDetailPage { id: String },
 
         #[route("/service-accounts")]
         ServiceAccountsPage {},

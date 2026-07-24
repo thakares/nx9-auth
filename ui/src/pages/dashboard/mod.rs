@@ -303,16 +303,6 @@ fn AdminSummary(admin: Value) -> Element {
                     }
                 }
             }
-
-            div { class: "card mt-2",
-                div { class: "card-body row", style: "justify-content:space-between;",
-                    span {
-                        strong { "System health: " }
-                        span { class: "badge badge-success", "{health}" }
-                    }
-                    span { class: "text-muted", "Placeholder probe — expand in a future release" }
-                }
-            }
         }
     }
 }

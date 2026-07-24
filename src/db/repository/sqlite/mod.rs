@@ -1,5 +1,7 @@
+pub mod application_members;
 pub mod applications;
 pub mod audit;
+pub mod global_slugs;
 pub mod groups;
 pub mod permissions;
 pub mod refresh_tokens;

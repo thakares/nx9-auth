@@ -74,6 +74,10 @@ pub fn LoginPage() -> Element {
                                             .and_then(|v| v.as_str())
                                             .unwrap_or("")
                                             .to_string(),
+                                        tenant_id: user_val
+                                            .get("tenant_id")
+                                            .and_then(|v| v.as_str())
+                                            .map(|s| s.to_string()),
                                         status: user_val
                                             .get("status")
                                             .and_then(|v| v.as_str())

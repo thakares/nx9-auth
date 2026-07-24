@@ -177,7 +177,7 @@ pub fn ProfilePage() -> Element {
                 }
 
                 div { class: "card",
-                    div { class: "card-header", h3 { "Coming soon" } }
+                    div { class: "card-header", h3 { "Planned security features" } }
                     div { class: "card-body stack",
                         div { class: "row", style: "justify-content:space-between;",
                             span { "Avatar upload" }

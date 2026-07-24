@@ -49,6 +49,13 @@ pub fn UsersPage() -> Element {
 
     use_effect(move || { reload.call(()); });
 
+    let can_create = state.auth.read().has_permission("users:create") || state.auth.read().is_adminish();
+    use_effect(move || {
+        if can_create && crate::utils::check_and_clear_create_intent() {
+            show_create.set(true);
+        }
+    });
+
     let filtered = {
         let q = query();
         let sf = status_filter();
@@ -305,9 +312,14 @@ pub fn UsersPage() -> Element {
 #[component]
 pub fn UserDetailPage(id: String) -> Element {
     let state = use_context::<AppState>();
+    let state_auth = state.auth;
+    let can_manage_apps = state_auth().has_permission("applications:manage");
+
     let mut user = use_signal(|| Option::<UserView>::None);
     let mut roles = use_signal(Vec::<crate::models::RoleView>::new);
     let mut all_roles = use_signal(Vec::<crate::models::RoleView>::new);
+    let mut user_apps =
+        use_signal(Vec::<crate::models::UserApplicationMembershipView>::new);
     let mut error = use_signal(|| Option::<String>::None);
     let mut loading = use_signal(|| true);
     let mut new_pass = use_signal(String::new);
@@ -325,6 +337,11 @@ pub fn UserDetailPage(id: String) -> Element {
                     roles.set(r);
                     if let Ok(ar) = api::list_roles().await {
                         all_roles.set(ar);
+                    }
+                    if let Ok(apps) = api::list_user_applications(&id).await {
+                        user_apps.set(apps);
+                    } else {
+                        user_apps.set(Vec::new());
                     }
                     loading.set(false);
                 }
@@ -481,6 +498,58 @@ pub fn UserDetailPage(id: String) -> Element {
                                     });
                                 },
                                 "Assign"
+                            }
+                        }
+                    }
+                }
+
+                if can_manage_apps {
+                    div { class: "card", style: "grid-column: 1 / -1;",
+                        div { class: "card-header", h3 { "Applications" } }
+                        div { class: "card-body",
+                            p { class: "text-secondary", style: "font-size:0.9rem; margin-bottom:0.75rem;",
+                                "Applications this user is assigned to. Membership roles are metadata only and do not change global RBAC."
+                            }
+                            if user_apps().is_empty() {
+                                p { class: "text-muted", "Not assigned to any applications." }
+                            } else {
+                                DataTable {
+                                    columns: vec![
+                                        ColumnDef { key: "name".into(), label: "Application".into(), sortable: false, visible: true },
+                                        ColumnDef { key: "role".into(), label: "Membership Role".into(), sortable: false, visible: true },
+                                        ColumnDef { key: "status".into(), label: "Status".into(), sortable: false, visible: true },
+                                        ColumnDef { key: "assigned".into(), label: "Assigned".into(), sortable: false, visible: true },
+                                    ],
+                                    on_search: |_| {},
+                                    search_value: "".to_string(),
+                                    search_placeholder: "".to_string(),
+                                    on_sort: |_| {},
+                                    sort_key: "".to_string(),
+                                    on_page: |_| {},
+                                    page: 0,
+                                    page_size: user_apps().len().max(1),
+                                    total: user_apps().len(),
+                                    for m in user_apps() {
+                                        tr { key: "{m.id}",
+                                            td {
+                                                Link {
+                                                    to: Route::ApplicationDetailPage { id: m.application_id.clone() },
+                                                    strong { "{m.application_name}" }
+                                                }
+                                                div { class: "text-muted", style: "font-size:0.8rem;",
+                                                    code { "{m.application_slug}" }
+                                                }
+                                            }
+                                            td { span { class: "badge badge-accent", "{m.role}" } }
+                                            td {
+                                                StatusChip {
+                                                    status: if m.enabled { "active".to_string() } else { "disabled".to_string() }
+                                                }
+                                            }
+                                            td { "{format_datetime(&m.created_at)}" }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

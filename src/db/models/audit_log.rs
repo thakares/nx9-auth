@@ -48,6 +48,7 @@ pub struct AuditFilter {
     pub since: Option<String>,
     pub until: Option<String>,
     pub search: Option<String>,
+    pub success: Option<bool>,
     pub limit: i64,
     pub offset: i64,
 }

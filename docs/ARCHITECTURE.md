@@ -36,7 +36,30 @@ The internal architecture is guided by structural design patterns:
 
 ---
 
-# 4. Technology Stack
+# 4. Data & Multi-Tenancy Architecture
+
+### Option-A Single-Tenant User Ownership
+NX9-Auth models user ownership via **Option-A Single-Tenant Ownership**:
+- Every user belongs to exactly one tenant (`users.tenant_id NOT NULL REFERENCES tenants(id)`).
+- Uniqueness invariant: `UNIQUE (tenant_id, username)`.
+- Tenant reassignment is transactionally atomic (`reassign_user_tenant_with_audit`):
+  1. Executes inside a single write transaction.
+  2. PostgreSQL uses `SELECT ... FOR UPDATE` row locking; SQLite uses write transactions and conditional `WHERE tenant_id = expected` updates.
+  3. Reassignment to the user's current tenant is a defined no-op returning `Ok(())` without writing false audit logs.
+  4. Database mutation (`UPDATE users.tenant_id`) and audit log insertion (`user.tenant_reassigned` with `from_tenant_id` and `to_tenant_id`) commit together; audit log failures trigger automatic database rollback.
+
+### Application Membership vs Global RBAC
+- **Application Membership**: Users are assigned to applications within their home tenant only (`ApplicationMember`). Membership roles (`owner`/`admin`/`member`) are application-scoped metadata.
+- **Global RBAC**: Platform authorization is governed strictly by global roles, permissions, and groups (`users.tenant_id`). Application membership roles never leak into or modify global RBAC.
+- **Application Membership Mutations**: Add, role update, enable/disable, and removal operations execute as single database transactions; failure to write audit logs automatically rolls back the membership mutation.
+
+### Global Slugs Registry & Lifecycle
+- `global_slugs` table enforces global uniqueness across tenant, application, and resource slugs.
+- Immutable UUID identities remain canonical; slugs serve as human-readable routing aliases.
+
+---
+
+# 5. Technology Stack
 
 ### Backend
 - **Core Language**: Rust (2024 Edition)

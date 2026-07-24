@@ -60,21 +60,12 @@ pub fn DataTable(
                                     input {
                                         r#type: "checkbox",
                                         checked: col.visible,
-                                        // TODO: emit event
                                     }
                                     span { "{col.label}" }
                                 }
                             }
                         }
                     }
-                }
-                
-                // CSV Export (future ready)
-                button {
-                    class: "btn btn-outline",
-                    r#type: "button",
-                    title: "Export to CSV (Coming Soon)",
-                    "⬇ Export"
                 }
             }
             

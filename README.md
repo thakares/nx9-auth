@@ -61,6 +61,24 @@ Existing applications upgraded from earlier schemas receive a stable Client ID. 
 
 > **Protocol boundary:** Application credentials, redirect URIs, and scopes form the application registration layer. Redirect URIs are registration metadata intended to become security-enforced redirect destinations when OAuth2/OIDC protocol handlers are implemented. This registration subsystem does not by itself claim complete OAuth2/OIDC grant-flow support.
 
+### Application user membership
+
+Registered applications can be assigned existing NX9-Auth users (same-tenant only). Membership is independent of application client credentials and of global RBAC:
+
+| Concern | Role |
+| --- | --- |
+| Application credentials | Authenticate the registered application itself (`client_id` + `client_secret`) |
+| Application membership | Assign existing human users to an application (`owner` / `admin` / `member` metadata) |
+| Global RBAC | Authoritative admin authorization (`applications:manage`, roles, permissions) |
+
+Membership APIs (all require `applications:manage`):
+
+- `GET/POST /api/v1/applications/:id/members`
+- `PATCH/DELETE /api/v1/applications/:id/members/:user_id`
+- `GET /api/v1/users/:id/applications`
+
+Membership roles do **not** grant `applications:manage` or any other global permission. Removing membership revokes application assignment only; it does not delete the user account.
+
 ---
 
 ## Runtime Lifecycle

@@ -435,6 +435,58 @@ pub async fn delete_application(id: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
+pub async fn get_application(id: &str) -> Result<ApplicationView, ApiError> {
+    let r: Value = get(&format!("/applications/{id}")).await?;
+    serde_json::from_value(r.get("application").cloned().unwrap_or(Value::Null))
+        .map_err(|e| ApiError::Other(e.to_string()))
+}
+
+pub async fn list_application_members(app_id: &str) -> Result<Vec<ApplicationMemberView>, ApiError> {
+    let r: ApplicationMembersResponse = get(&format!("/applications/{app_id}/members")).await?;
+    Ok(r.members)
+}
+
+pub async fn add_application_member(
+    app_id: &str,
+    user_id: &str,
+    role: Option<&str>,
+) -> Result<ApplicationMemberView, ApiError> {
+    let body = serde_json::json!({
+        "user_id": user_id,
+        "role": role,
+    });
+    let r: Value = post_json(&format!("/applications/{app_id}/members"), &body).await?;
+    serde_json::from_value(r.get("member").cloned().unwrap_or(Value::Null))
+        .map_err(|e| ApiError::Other(e.to_string()))
+}
+
+pub async fn update_application_member(
+    app_id: &str,
+    user_id: &str,
+    role: Option<&str>,
+    enabled: Option<bool>,
+) -> Result<ApplicationMemberView, ApiError> {
+    let body = serde_json::json!({
+        "role": role,
+        "enabled": enabled,
+    });
+    let r: Value = patch_json(&format!("/applications/{app_id}/members/{user_id}"), &body).await?;
+    serde_json::from_value(r.get("member").cloned().unwrap_or(Value::Null))
+        .map_err(|e| ApiError::Other(e.to_string()))
+}
+
+pub async fn remove_application_member(app_id: &str, user_id: &str) -> Result<(), ApiError> {
+    let _: Value = delete_json(&format!("/applications/{app_id}/members/{user_id}")).await?;
+    Ok(())
+}
+
+pub async fn list_user_applications(
+    user_id: &str,
+) -> Result<Vec<UserApplicationMembershipView>, ApiError> {
+    let r: UserApplicationsResponse = get(&format!("/users/{user_id}/applications")).await?;
+    Ok(r.applications)
+}
+
 // ── Service accounts ──────────────────────────────────────────────────────────
 
 pub async fn list_service_accounts() -> Result<Vec<ServiceAccountView>, ApiError> {
@@ -565,4 +617,28 @@ pub async fn get_tenant(id: &str) -> Result<TenantView, ApiError> {
 pub async fn delete_tenant(id: &str) -> Result<(), ApiError> {
     let _: Value = delete_json(&format!("/tenants/{id}")).await?;
     Ok(())
+}
+
+pub async fn list_tenant_users(tenant_id: &str) -> Result<Vec<UserView>, ApiError> {
+    let r: Value = get(&format!("/tenants/{tenant_id}/users")).await?;
+    serde_json::from_value(r.get("users").cloned().unwrap_or(Value::Array(vec![])))
+        .map_err(|e| ApiError::Other(e.to_string()))
+}
+
+pub async fn assign_tenant_user(tenant_id: &str, user_id: &str) -> Result<UserView, ApiError> {
+    let body = serde_json::json!({ "user_id": user_id });
+    let r: Value = post_json(&format!("/tenants/{tenant_id}/users"), &body).await?;
+    serde_json::from_value(r.get("user").cloned().unwrap_or(Value::Null))
+        .map_err(|e| ApiError::Other(e.to_string()))
+}
+
+pub async fn remove_tenant_user(tenant_id: &str, user_id: &str) -> Result<(), ApiError> {
+    let _: Value = delete_json(&format!("/tenants/{tenant_id}/users/{user_id}")).await?;
+    Ok(())
+}
+
+pub async fn list_tenant_applications(tenant_id: &str) -> Result<Vec<ApplicationView>, ApiError> {
+    let r: Value = get(&format!("/tenants/{tenant_id}/applications")).await?;
+    serde_json::from_value(r.get("applications").cloned().unwrap_or(Value::Array(vec![])))
+        .map_err(|e| ApiError::Other(e.to_string()))
 }

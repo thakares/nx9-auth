@@ -1,8 +1,10 @@
+use crate::db::models::Application;
+use crate::db::repository::sqlite::global_slugs::{
+    release_slug_by_name_sqlite, release_slug_sqlite, reserve_slug_sqlite,
+};
 use crate::db::repository::traits::ApplicationsRepository;
 use async_trait::async_trait;
 use sqlx::SqlitePool;
-
-use crate::db::models::Application;
 
 pub struct SqliteApplicationsRepository {
     pub pool: SqlitePool,
@@ -24,6 +26,8 @@ impl ApplicationsRepository for SqliteApplicationsRepository {
         audit_event: Option<crate::audit::AuditEvent<'_>>,
     ) -> Result<Application, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
+
+        reserve_slug_sqlite(&mut tx, slug, "application", id, tenant_id).await?;
 
         let app = sqlx::query_as::<_, Application>(
             r#"
@@ -188,31 +192,73 @@ impl ApplicationsRepository for SqliteApplicationsRepository {
         scopes: Option<&str>,
         enabled: bool,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"
-        UPDATE applications
-        SET name = ?, slug = ?, description = ?, redirect_uris = ?, scopes = ?, enabled = ?,
-            updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
-        WHERE id = ?
-        "#,
-        )
-        .bind(name)
-        .bind(slug)
-        .bind(description)
-        .bind(redirect_uris)
-        .bind(scopes)
-        .bind(enabled)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        let existing = self.find_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)?;
+
+        let existing_slug_str = existing.slug.as_deref().unwrap_or("");
+
+        if slug == existing_slug_str {
+            // Unchanged slug: registry no-op
+            sqlx::query(
+                r#"
+            UPDATE applications
+            SET name = ?, description = ?, redirect_uris = ?, scopes = ?, enabled = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE id = ?
+            "#,
+            )
+            .bind(name)
+            .bind(description)
+            .bind(redirect_uris)
+            .bind(scopes)
+            .bind(enabled)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        } else {
+            // Changed slug: single transaction reserve -> update -> release
+            let mut tx = self.pool.begin().await?;
+
+            reserve_slug_sqlite(&mut tx, slug, "application", id, &existing.tenant_id).await?;
+
+            sqlx::query(
+                r#"
+            UPDATE applications
+            SET name = ?, slug = ?, description = ?, redirect_uris = ?, scopes = ?, enabled = ?,
+                updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+            WHERE id = ?
+            "#,
+            )
+            .bind(name)
+            .bind(slug)
+            .bind(description)
+            .bind(redirect_uris)
+            .bind(scopes)
+            .bind(enabled)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+
+            if !existing_slug_str.is_empty() {
+                release_slug_by_name_sqlite(&mut tx, existing_slug_str, "application", id).await?;
+            }
+
+            tx.commit().await?;
+        }
+
         Ok(())
     }
 
     async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        release_slug_sqlite(&mut tx, "application", id).await?;
+
         sqlx::query("DELETE FROM applications WHERE id = ?")
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+
+        tx.commit().await?;
         Ok(())
     }
 

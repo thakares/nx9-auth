@@ -1,7 +1,7 @@
 use axum::http::{HeaderName, Method, header};
 use axum::{
     Router, middleware,
-    routing::{delete, get, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use tower_http::{compression::CompressionLayer, cors::CorsLayer, trace::TraceLayer};
 
@@ -40,6 +40,18 @@ pub fn build(state: AppState) -> Router {
                 .patch(tenants::update_tenant)
                 .delete(tenants::delete_tenant),
         )
+        .route(
+            "/tenants/{id}/users",
+            get(tenants::list_tenant_users).post(tenants::assign_tenant_user),
+        )
+        .route(
+            "/tenants/{id}/users/{user_id}",
+            delete(tenants::remove_tenant_user),
+        )
+        .route(
+            "/tenants/{id}/applications",
+            get(tenants::list_tenant_applications),
+        )
         // Users
         .route("/users", get(users::list_users).post(users::create_user))
         .route(
@@ -54,6 +66,10 @@ pub fn build(state: AppState) -> Router {
             get(users::list_user_roles).post(roles::assign_user_role),
         )
         .route("/users/{id}/roles/{role}", delete(roles::remove_user_role))
+        .route(
+            "/users/{id}/applications",
+            get(users::list_user_applications),
+        )
         // Roles
         .route("/roles", get(roles::list_roles).post(roles::create_role))
         .route(
@@ -86,6 +102,15 @@ pub fn build(state: AppState) -> Router {
             "/applications/{id}/secret",
             post(applications::rotate_application_secret),
         )
+        .route(
+            "/applications/{id}/members",
+            get(applications::list_application_members).post(applications::add_application_member),
+        )
+        .route(
+            "/applications/{id}/members/{user_id}",
+            patch(applications::update_application_member)
+                .delete(applications::remove_application_member),
+        )
         // Service accounts
         .route(
             "/service-accounts",
@@ -104,6 +129,7 @@ pub fn build(state: AppState) -> Router {
         )
         // Audit
         .route("/audit", get(audit::list_audit))
+        .route("/audit/export", get(audit::export_audit))
         // Sessions
         .route("/sessions", get(sessions::list_sessions))
         .route("/sessions/others", delete(sessions::terminate_others))

@@ -52,7 +52,16 @@ pub fn RolesPage() -> Element {
             }
         });
     });
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
+
+    let can_create = state.auth.read().has_permission("roles:manage") || state.auth.read().is_adminish();
+    use_effect(move || {
+        if can_create && crate::utils::check_and_clear_create_intent() {
+            show_create.set(true);
+        }
+    });
 
     let mut filtered: Vec<RoleView> = roles()
         .into_iter()

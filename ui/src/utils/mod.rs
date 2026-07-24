@@ -75,3 +75,47 @@ pub fn slugify(s: &str) -> String {
         .collect::<Vec<_>>()
         .join("-")
 }
+
+/// Check if location search contains exact `create=1` query parameter, and clear `create=1` from history URL while preserving other parameters.
+pub fn check_and_clear_create_intent() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        if let Some(window) = web_sys::window() {
+            if let Ok(search) = window.location().search() {
+                let query_str = search.trim_start_matches('?');
+                let mut has_create = false;
+                let mut remaining_params = Vec::new();
+
+                for part in query_str.split('&') {
+                    if part.is_empty() {
+                        continue;
+                    }
+                    let mut key_val = part.splitn(2, '=');
+                    let key = key_val.next().unwrap_or("");
+                    let val = key_val.next().unwrap_or("");
+                    if key == "create" && val == "1" {
+                        has_create = true;
+                    } else {
+                        remaining_params.push(part);
+                    }
+                }
+
+                if has_create {
+                    if let Ok(pathname) = window.location().pathname() {
+                        let new_search = if remaining_params.is_empty() {
+                            String::new()
+                        } else {
+                            format!("?{}", remaining_params.join("&"))
+                        };
+                        let new_url = format!("{pathname}{new_search}");
+                        let _ = window.history().and_then(|h| {
+                            h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&new_url))
+                        });
+                    }
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}

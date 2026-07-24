@@ -65,12 +65,11 @@ impl AuditRepository for SqliteAuditRepository {
     }
 
     async fn list_filtered(&self, filter: &AuditFilter) -> Result<Vec<AuditLog>, sqlx::Error> {
-        // Build a dynamic but simple filter using COALESCE-style optional matches.
-        // Empty optionals are treated as wildcards via OR IS NULL pattern with bind of None.
         let search_like = filter
             .search
             .as_ref()
             .map(|s| format!("%{}%", s.replace('%', "\\%")));
+        let success_val = filter.success.map(|b| if b { 1i32 } else { 0i32 });
 
         sqlx::query_as::<_, AuditLog>(
             r#"
@@ -89,8 +88,13 @@ impl AuditRepository for SqliteAuditRepository {
              OR ip_address LIKE ?7 ESCAPE '\'
              OR metadata_json LIKE ?7 ESCAPE '\'
           )
+          AND (
+                ?8 IS NULL
+             OR (?8 = 1 AND action NOT LIKE '%fail%' AND action NOT LIKE '%denied%' AND severity != 'critical')
+             OR (?8 = 0 AND (action LIKE '%fail%' OR action LIKE '%denied%' OR severity = 'critical'))
+          )
         ORDER BY created_at DESC
-        LIMIT ?8 OFFSET ?9
+        LIMIT ?9 OFFSET ?10
         "#,
         )
         .bind(filter.actor_user_id.as_deref())
@@ -100,6 +104,7 @@ impl AuditRepository for SqliteAuditRepository {
         .bind(filter.since.as_deref())
         .bind(filter.until.as_deref())
         .bind(search_like.as_deref())
+        .bind(success_val)
         .bind(filter.limit)
         .bind(filter.offset)
         .fetch_all(&self.pool)
@@ -111,6 +116,7 @@ impl AuditRepository for SqliteAuditRepository {
             .search
             .as_ref()
             .map(|s| format!("%{}%", s.replace('%', "\\%")));
+        let success_val = filter.success.map(|b| if b { 1i32 } else { 0i32 });
 
         let row: (i64,) = sqlx::query_as(
             r#"
@@ -129,6 +135,11 @@ impl AuditRepository for SqliteAuditRepository {
              OR ip_address LIKE ?7 ESCAPE '\'
              OR metadata_json LIKE ?7 ESCAPE '\'
           )
+          AND (
+                ?8 IS NULL
+             OR (?8 = 1 AND action NOT LIKE '%fail%' AND action NOT LIKE '%denied%' AND severity != 'critical')
+             OR (?8 = 0 AND (action LIKE '%fail%' OR action LIKE '%denied%' OR severity = 'critical'))
+          )
         "#,
         )
         .bind(filter.actor_user_id.as_deref())
@@ -138,6 +149,7 @@ impl AuditRepository for SqliteAuditRepository {
         .bind(filter.since.as_deref())
         .bind(filter.until.as_deref())
         .bind(search_like.as_deref())
+        .bind(success_val)
         .fetch_one(&self.pool)
         .await?;
         Ok(row.0)

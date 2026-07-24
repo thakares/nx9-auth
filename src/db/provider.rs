@@ -18,6 +18,8 @@ pub trait DatabaseProvider: Send + Sync {
     fn tokens(&self) -> Box<dyn TokensRepository>;
     fn tenants(&self) -> Box<dyn TenantsRepository>;
     fn groups(&self) -> Box<dyn GroupsRepository>;
+    fn application_members(&self) -> Box<dyn ApplicationMembersRepository>;
+    fn global_slugs(&self) -> Box<dyn GlobalSlugsRepository>;
 }
 
 #[cfg(feature = "sqlite")]
@@ -112,6 +114,20 @@ impl DatabaseProvider for SqliteProvider {
             },
         )
     }
+    fn application_members(&self) -> Box<dyn ApplicationMembersRepository> {
+        Box::new(
+            crate::db::repository::sqlite::application_members::SqliteApplicationMembersRepository {
+                pool: self.pool.clone(),
+            },
+        )
+    }
+    fn global_slugs(&self) -> Box<dyn GlobalSlugsRepository> {
+        Box::new(
+            crate::db::repository::sqlite::global_slugs::SqliteGlobalSlugsRepository {
+                pool: self.pool.clone(),
+            },
+        )
+    }
 }
 
 #[cfg(feature = "postgres")]
@@ -202,6 +218,20 @@ impl DatabaseProvider for PostgresProvider {
     fn groups(&self) -> Box<dyn GroupsRepository> {
         Box::new(
             crate::db::repository::postgres::groups::PostgresGroupsRepository {
+                pool: self.pool.clone(),
+            },
+        )
+    }
+    fn application_members(&self) -> Box<dyn ApplicationMembersRepository> {
+        Box::new(
+            crate::db::repository::postgres::application_members::PostgresApplicationMembersRepository {
+                pool: self.pool.clone(),
+            },
+        )
+    }
+    fn global_slugs(&self) -> Box<dyn GlobalSlugsRepository> {
+        Box::new(
+            crate::db::repository::postgres::global_slugs::PostgresGlobalSlugsRepository {
                 pool: self.pool.clone(),
             },
         )

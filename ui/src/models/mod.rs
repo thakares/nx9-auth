@@ -21,6 +21,8 @@ pub struct TenantsResponse {
 pub struct UserView {
     pub id: String,
     pub username: String,
+    #[serde(default)]
+    pub tenant_id: Option<String>,
     pub status: String,
     #[serde(default)]
     pub last_login_at: Option<String>,
@@ -154,6 +156,60 @@ pub struct CreateApplicationResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct RotateSecretResponse {
     pub client_secret: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ApplicationMemberView {
+    pub id: String,
+    pub application_id: String,
+    pub user_id: String,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub user_status: String,
+    pub role: String,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct ApplicationMembersResponse {
+    #[serde(default)]
+    pub members: Vec<ApplicationMemberView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct UserApplicationMembershipView {
+    pub id: String,
+    pub application_id: String,
+    pub user_id: String,
+    pub role: String,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub updated_at: String,
+    #[serde(default)]
+    pub application_name: String,
+    #[serde(default)]
+    pub application_slug: String,
+    #[serde(default)]
+    pub application_enabled: bool,
+    #[serde(default)]
+    pub client_id: String,
+    #[serde(default)]
+    pub credentials_configured: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub struct UserApplicationsResponse {
+    #[serde(default)]
+    pub applications: Vec<UserApplicationMembershipView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

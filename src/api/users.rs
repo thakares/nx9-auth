@@ -9,7 +9,7 @@ use crate::{
     db::models::Tenant,
     db::models::{User, UserStatus},
     error::{AppError, Result},
-    identity::users as identity,
+    identity::{application_members as members, users as identity},
     middleware::{audit::AuditContext, auth::AuthUser, permissions::require},
     state::AppState,
 };
@@ -20,6 +20,7 @@ use crate::{
 pub struct UserResponse {
     pub id: String,
     pub username: String,
+    pub tenant_id: String,
     pub status: String,
     pub last_login_at: Option<String>,
     pub created_at: String,
@@ -29,8 +30,9 @@ pub struct UserResponse {
 impl From<User> for UserResponse {
     fn from(u: User) -> Self {
         Self {
-            id: u.id,
+            id: u.id.clone(),
             username: u.username,
+            tenant_id: u.tenant_id,
             status: UserStatus::from_i32(u.status).to_string(),
             last_login_at: u.last_login_at,
             created_at: u.created_at,
@@ -214,4 +216,80 @@ pub async fn list_user_roles(
             })
         }).collect::<Vec<_>>(),
     })))
+}
+
+/// GET /api/v1/users/:id/applications
+///
+/// Reverse lookup: list applications assigned to a user via membership.
+/// Requires `applications:manage` (membership administration).
+pub async fn list_user_applications(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<String>,
+) -> Result<Json<Value>> {
+    require(
+        &state.provider,
+        &auth.user.id,
+        crate::api::applications::MANAGE_PERM,
+    )
+    .await?;
+
+    let memberships = members::list_by_user(&state.provider, &id).await?;
+
+    #[derive(Serialize)]
+    struct UserApplicationView {
+        id: String,
+        application_id: String,
+        user_id: String,
+        role: String,
+        enabled: bool,
+        created_at: String,
+        updated_at: String,
+        application_name: String,
+        application_slug: String,
+        application_enabled: bool,
+        client_id: String,
+        credentials_configured: bool,
+    }
+
+    let mut views = Vec::with_capacity(memberships.len());
+    for m in memberships {
+        let app = state
+            .provider
+            .applications()
+            .find_by_id(&m.application_id)
+            .await
+            .map_err(AppError::Database)?;
+
+        let (name, slug, app_enabled, client_id, credentials_configured) = match app {
+            Some(a) => {
+                let credentials_configured = a.has_credentials();
+                (
+                    a.name,
+                    a.slug.unwrap_or_default(),
+                    a.enabled,
+                    a.client_id,
+                    credentials_configured,
+                )
+            }
+            None => continue,
+        };
+
+        views.push(UserApplicationView {
+            id: m.id,
+            application_id: m.application_id,
+            user_id: m.user_id,
+            role: m.role,
+            enabled: m.enabled,
+            created_at: m.created_at,
+            updated_at: m.updated_at,
+            application_name: name,
+            application_slug: slug,
+            application_enabled: app_enabled,
+            client_id,
+            credentials_configured,
+        });
+    }
+
+    Ok(Json(json!({ "applications": views })))
 }

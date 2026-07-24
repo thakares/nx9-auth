@@ -1,8 +1,10 @@
+use crate::db::models::Application;
+use crate::db::repository::postgres::global_slugs::{
+    release_slug_by_name_postgres, release_slug_postgres, reserve_slug_postgres,
+};
 use crate::db::repository::traits::ApplicationsRepository;
 use async_trait::async_trait;
 use sqlx::PgPool;
-
-use crate::db::models::Application;
 
 pub struct PostgresApplicationsRepository {
     pub pool: PgPool,
@@ -24,6 +26,8 @@ impl ApplicationsRepository for PostgresApplicationsRepository {
         audit_event: Option<crate::audit::AuditEvent<'_>>,
     ) -> Result<Application, sqlx::Error> {
         let mut tx = self.pool.begin().await?;
+
+        reserve_slug_postgres(&mut tx, slug, "application", id, tenant_id).await?;
 
         let app = sqlx::query_as::<_, Application>(
             r#"
@@ -188,31 +192,74 @@ impl ApplicationsRepository for PostgresApplicationsRepository {
         scopes: Option<&str>,
         enabled: bool,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"
-        UPDATE applications
-        SET name = $1, slug = $2, description = $3, redirect_uris = $4, scopes = $5, enabled = $6,
-            updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-        WHERE id = $7
-        "#,
-        )
-        .bind(name)
-        .bind(slug)
-        .bind(description)
-        .bind(redirect_uris)
-        .bind(scopes)
-        .bind(enabled)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        let existing = self.find_by_id(id).await?.ok_or(sqlx::Error::RowNotFound)?;
+
+        let existing_slug_str = existing.slug.as_deref().unwrap_or("");
+
+        if slug == existing_slug_str {
+            // Unchanged slug: registry no-op
+            sqlx::query(
+                r#"
+            UPDATE applications
+            SET name = $1, description = $2, redirect_uris = $3, scopes = $4, enabled = $5,
+                updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            WHERE id = $6
+            "#,
+            )
+            .bind(name)
+            .bind(description)
+            .bind(redirect_uris)
+            .bind(scopes)
+            .bind(enabled)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        } else {
+            // Changed slug: single transaction reserve -> update -> release
+            let mut tx = self.pool.begin().await?;
+
+            reserve_slug_postgres(&mut tx, slug, "application", id, &existing.tenant_id).await?;
+
+            sqlx::query(
+                r#"
+            UPDATE applications
+            SET name = $1, slug = $2, description = $3, redirect_uris = $4, scopes = $5, enabled = $6,
+                updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            WHERE id = $7
+            "#,
+            )
+            .bind(name)
+            .bind(slug)
+            .bind(description)
+            .bind(redirect_uris)
+            .bind(scopes)
+            .bind(enabled)
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+
+            if !existing_slug_str.is_empty() {
+                release_slug_by_name_postgres(&mut tx, existing_slug_str, "application", id)
+                    .await?;
+            }
+
+            tx.commit().await?;
+        }
+
         Ok(())
     }
 
     async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        release_slug_postgres(&mut tx, "application", id).await?;
+
         sqlx::query("DELETE FROM applications WHERE id = $1")
             .bind(id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+
+        tx.commit().await?;
         Ok(())
     }
 

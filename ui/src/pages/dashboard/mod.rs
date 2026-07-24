@@ -32,7 +32,9 @@ pub fn DashboardPage() -> Element {
         });
     });
 
-    use_effect(move || { load.call(()); });
+    use_effect(move || {
+        load.call(());
+    });
 
     rsx! {
         Breadcrumb { items: vec![("Dashboard".to_string(), None)] }
@@ -243,12 +245,6 @@ fn AdminSummary(admin: Value) -> Element {
         .and_then(|v| v.as_array())
         .cloned()
         .unwrap_or_default();
-    let health = admin
-        .get("system_health")
-        .and_then(|v| v.get("status"))
-        .and_then(|v| v.as_str())
-        .unwrap_or("unknown");
-
     rsx! {
         div { class: "mb-2",
             h2 { style: "margin-bottom: 0.75rem;", "Administrator overview" }

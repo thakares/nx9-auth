@@ -3,7 +3,7 @@
 use crate::components::feedback::{ConfirmDialog, EmptyState, ErrorState, LoadingSpinner, Modal};
 use crate::components::forms::TextInput;
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::components::widgets::StatusChip;
 use crate::models::ServiceAccountView;
 use crate::routes::Route;
@@ -44,9 +44,12 @@ pub fn ServiceAccountsPage() -> Element {
             }
         });
     });
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
-    let can_create = state.auth.read().has_permission("service_accounts:manage") || state.auth.read().is_adminish();
+    let can_create = state.auth.read().has_permission("service_accounts:manage")
+        || state.auth.read().is_adminish();
     use_effect(move || {
         if can_create && crate::utils::check_and_clear_create_intent() {
             show_create.set(true);
@@ -69,9 +72,13 @@ pub fn ServiceAccountsPage() -> Element {
         "created" => b.created_at.cmp(&a.created_at),
         _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
-    
+
     let total = filtered.len();
-    let page_items: Vec<_> = filtered.into_iter().skip(page() * page_size).take(page_size).collect();
+    let page_items: Vec<_> = filtered
+        .into_iter()
+        .skip(page() * page_size)
+        .take(page_size)
+        .collect();
 
     rsx! {
         Breadcrumb { items: vec![

@@ -52,16 +52,6 @@ fn is_static_asset(path: &str) -> bool {
 
 /// Serve a static file from the UI dist dir, or SPA fallback for app routes.
 pub async fn serve_ui(uri: Uri) -> Response {
-    let dist = ui_dist_dir();
-    if !dist.exists() {
-        return missing_ui_page().into_response();
-    }
-
-    let path = uri.path().trim_start_matches('/');
-    if path.starts_with("api/") || path == "health" || path == "version" {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-
     // Security Hardening: Reject & sanitize any GET request containing credentials in query string.
     if let Some(query) = uri.query() {
         let q_lower = query.to_ascii_lowercase();
@@ -82,6 +72,16 @@ pub async fn serve_ui(uri: Uri) -> Response {
                 .body(Body::empty())
                 .unwrap_or_else(|_| StatusCode::BAD_REQUEST.into_response());
         }
+    }
+
+    let dist = ui_dist_dir();
+    if !dist.exists() {
+        return missing_ui_page().into_response();
+    }
+
+    let path = uri.path().trim_start_matches('/');
+    if path.starts_with("api/") || path == "health" || path == "version" {
+        return StatusCode::NOT_FOUND.into_response();
     }
 
     // Normalize and reject path traversal

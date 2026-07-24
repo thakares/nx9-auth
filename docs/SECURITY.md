@@ -50,7 +50,9 @@ NX9-Auth is designed with a **security-first, privacy-first, zero-trust** archit
 Audit logs record critical identity lifecycle events while strictly redacting sensitive fields:
 - **Recorded Events**: Login success/failure, logout, password change, user creation/deletion, tenant reassignment, API token issuance/revocation, application creation/secret rotation/membership modification, role/permission assignments.
 - **Redaction Rules**: Plaintext passwords, password hashes, bearer tokens, refresh tokens, client secrets, client secret hashes, session secrets, and `Authorization` headers are **never** logged under any circumstances.
-- **Bounded CSV Export**: Audit log CSV export uses server-side audit search APIs bounded to a maximum of 5,000 records matching currently active query filters, preserving exact tenant/RBAC restrictions and RFC-4180 field escaping.
+- **Success/Failure Filters**: Server-side derived success/failure filtering is based on audit action and severity semantics; success is not persisted as a database column.
+- **Exact Resource Activity**: Resource activity filters use exact `resource_type` and `resource_id` predicates; generic text search remains separate.
+- **Bounded CSV Export**: Audit log CSV export uses server-side audit search APIs bounded to a maximum of 5,000 records matching active filters and preserves the same `audit:view` authorization as the normal audit endpoint, with RFC-4180 field escaping.
 
 ## Rate Limiting & Protection
 

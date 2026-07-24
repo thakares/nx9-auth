@@ -1,6 +1,5 @@
 use crate::routes::Route;
 
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct NavigationItem {
     pub id: String,

@@ -2,7 +2,7 @@
 
 use crate::components::feedback::{EmptyState, ErrorState, LoadingSpinner};
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::models::PermissionsResponse;
 use crate::routes::Route;
 use crate::services::api;
@@ -35,7 +35,9 @@ pub fn PermissionsPage() -> Element {
             }
         });
     });
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     rsx! {
         Breadcrumb { items: vec![
@@ -60,7 +62,7 @@ pub fn PermissionsPage() -> Element {
                 let groups: Vec<String> = d.groups.iter().map(|g| g.group.clone()).collect();
                 let q = query();
                 let gf = group_filter();
-                
+
                 // Flatten permissions for data table
                 let mut all_perms: Vec<(String, crate::models::PermissionView)> = Vec::new();
                 for g in &d.groups {
@@ -72,14 +74,14 @@ pub fn PermissionsPage() -> Element {
                         }
                     }
                 }
-                
+
                 let sk = sort_key();
                 all_perms.sort_by(|a, b| match sk.as_str() {
                     "group" => a.0.cmp(&b.0).then_with(|| a.1.name.cmp(&b.1.name)),
                     "description" => a.1.description.cmp(&b.1.description),
                     _ => a.1.name.cmp(&b.1.name),
                 });
-                
+
                 let total = all_perms.len();
                 let page_items: Vec<_> = all_perms.into_iter().skip(page() * page_size).take(page_size).collect();
 

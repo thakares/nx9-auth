@@ -1,6 +1,6 @@
 //! Table helpers: search toolbar + pagination.
 pub mod datatable;
-pub use datatable::{DataTable, ColumnDef};
+pub use datatable::{ColumnDef, DataTable};
 
 use dioxus::prelude::*;
 

@@ -1,6 +1,6 @@
 use crate::components::feedback::{ConfirmDialog, EmptyState, ErrorState, LoadingSpinner};
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::models::SessionView;
 use crate::routes::Route;
 use crate::services::api;
@@ -9,12 +9,19 @@ use crate::utils::{format_datetime, matches_query};
 use dioxus::prelude::*;
 
 fn parse_browser(ua: &str) -> String {
-    if ua.contains("Chrome") && !ua.contains("Edg") { "Chrome".to_string() }
-    else if ua.contains("Firefox") { "Firefox".to_string() }
-    else if ua.contains("Safari") && !ua.contains("Chrome") { "Safari".to_string() }
-    else if ua.contains("Edg") { "Edge".to_string() }
-    else if ua.is_empty() { "Unknown".to_string() }
-    else { ua.chars().take(30).collect::<String>() + "..." }
+    if ua.contains("Chrome") && !ua.contains("Edg") {
+        "Chrome".to_string()
+    } else if ua.contains("Firefox") {
+        "Firefox".to_string()
+    } else if ua.contains("Safari") && !ua.contains("Chrome") {
+        "Safari".to_string()
+    } else if ua.contains("Edg") {
+        "Edge".to_string()
+    } else if ua.is_empty() {
+        "Unknown".to_string()
+    } else {
+        ua.chars().take(30).collect::<String>() + "..."
+    }
 }
 
 #[component]
@@ -32,13 +39,21 @@ pub fn SessionsPage() -> Element {
         error.set(None);
         spawn(async move {
             match api::list_sessions().await {
-                Ok(r) => { sessions.set(r.sessions); loading.set(false); }
-                Err(e) => { error.set(Some(e.to_string())); loading.set(false); }
+                Ok(r) => {
+                    sessions.set(r.sessions);
+                    loading.set(false);
+                }
+                Err(e) => {
+                    error.set(Some(e.to_string()));
+                    loading.set(false);
+                }
             }
         });
     });
 
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     let filtered: Vec<SessionView> = sessions()
         .into_iter()

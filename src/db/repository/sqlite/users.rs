@@ -100,17 +100,6 @@ impl UsersRepository for SqliteUsersRepository {
         Ok(())
     }
 
-    async fn update_user_tenant(&self, id: &str, tenant_id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "UPDATE users SET tenant_id = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
-        )
-        .bind(tenant_id)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     async fn reassign_user_tenant_with_audit(
         &self,
         user_id: &str,

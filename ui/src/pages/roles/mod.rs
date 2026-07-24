@@ -3,7 +3,7 @@
 use crate::components::feedback::{ConfirmDialog, EmptyState, ErrorState, LoadingSpinner, Modal};
 use crate::components::forms::{Checkbox, TextInput};
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::models::{PermissionView, RoleView};
 use crate::routes::Route;
 use crate::services::api;
@@ -56,7 +56,8 @@ pub fn RolesPage() -> Element {
         reload.call(());
     });
 
-    let can_create = state.auth.read().has_permission("roles:manage") || state.auth.read().is_adminish();
+    let can_create =
+        state.auth.read().has_permission("roles:manage") || state.auth.read().is_adminish();
     use_effect(move || {
         if can_create && crate::utils::check_and_clear_create_intent() {
             show_create.set(true);

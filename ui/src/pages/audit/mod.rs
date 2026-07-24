@@ -69,13 +69,17 @@ pub fn AuditPage() -> Element {
         });
     });
 
-    use_effect(move || { load.call(()); });
+    use_effect(move || {
+        load.call(());
+    });
 
     rsx! {
-        Breadcrumb { items: vec![
-            ("Dashboard".to_string(), Some(Route::DashboardPage {})),
-            ("Audit Log".to_string(), None),
-        ]}
+        Breadcrumb {
+            items: vec![
+                ("Dashboard".to_string(), Some(Route::DashboardPage {})),
+                ("Audit Log".to_string(), None),
+            ],
+        }
 
         div { class: "page-header",
             div {
@@ -88,36 +92,77 @@ pub fn AuditPage() -> Element {
                     r#type: "button",
                     title: "Export filtered audit log records as CSV",
                     onclick: move |_| {
-                        let mut parts = vec!["limit=5000".to_string(), "offset=0".to_string()];
-                        if !query().is_empty() { parts.push(format!("q={}", urlencoding_lite(&query()))); }
-                        if !action().is_empty() { parts.push(format!("action={}", urlencoding_lite(&action()))); }
-                        if !resource().is_empty() { parts.push(format!("resource_type={}", urlencoding_lite(&resource()))); }
-                        if severity() != "all" { parts.push(format!("severity={}", severity())); }
-                        if success() == "true" { parts.push("success=true".to_string()); }
-                        else if success() == "false" { parts.push("success=false".to_string()); }
-                        if !since().is_empty() { parts.push(format!("since={}", urlencoding_lite(&since()))); }
-                        if !until().is_empty() { parts.push(format!("until={}", urlencoding_lite(&until()))); }
+                        let mut parts = vec![
+                            "limit=5000".to_string(),
+                            "offset=0".to_string(),
+                        ];
+
+                        if !query().is_empty() {
+                            parts.push(format!("q={}", urlencoding_lite(&query())));
+                        }
+                        if !action().is_empty() {
+                            parts.push(format!("action={}", urlencoding_lite(&action())));
+                        }
+                        if !resource().is_empty() {
+                            parts.push(format!(
+                                "resource_type={}",
+                                urlencoding_lite(&resource())
+                            ));
+                        }
+                        if severity() != "all" {
+                            parts.push(format!("severity={}", severity()));
+                        }
+                        if success() == "true" {
+                            parts.push("success=true".to_string());
+                        } else if success() == "false" {
+                            parts.push("success=false".to_string());
+                        }
+                        if !since().is_empty() {
+                            parts.push(format!("since={}", urlencoding_lite(&since())));
+                        }
+                        if !until().is_empty() {
+                            parts.push(format!("until={}", urlencoding_lite(&until())));
+                        }
+
                         let qs = parts.join("&");
                         let export_url = format!("/api/v1/audit/export?{qs}");
+
                         #[cfg(target_arch = "wasm32")]
                         {
                             use wasm_bindgen::JsCast;
+
                             if let Some(window) = web_sys::window() {
                                 if let Some(document) = window.document() {
                                     if let Ok(element) = document.create_element("a") {
                                         let _ = element.set_attribute("href", &export_url);
-                                        let _ = element.set_attribute("download", "audit_export.csv");
-                                        if let Ok(html_elem) = element.dyn_into::<web_sys::HtmlElement>() {
-                                            html_elem.click();
+                                        let _ = element.set_attribute(
+                                            "download",
+                                            "audit_export.csv",
+                                        );
+
+                                        if let Ok(html_element) =
+                                            element.dyn_into::<web_sys::HtmlElement>()
+                                        {
+                                            html_element.click();
                                         }
                                     }
                                 }
                             }
                         }
+
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            let _ = export_url;
+                        }
                     },
                     "Export CSV"
                 }
-                button { class: "btn btn-outline", r#type: "button", onclick: move |_| load.call(()), "Refresh" }
+                button {
+                    class: "btn btn-outline",
+                    r#type: "button",
+                    onclick: move |_| load.call(()),
+                    "Refresh"
+                }
             }
         }
 
@@ -130,19 +175,22 @@ pub fn AuditPage() -> Element {
                         placeholder: "Search action, resource, IP…",
                     }
                     input {
-                        class: "form-control", style: "width:auto;max-width:140px;",
+                        class: "form-control",
+                        style: "width:auto;max-width:140px;",
                         placeholder: "Action",
                         value: "{action()}",
                         oninput: move |e| action.set(e.value()),
                     }
                     input {
-                        class: "form-control", style: "width:auto;max-width:140px;",
+                        class: "form-control",
+                        style: "width:auto;max-width:140px;",
                         placeholder: "Resource",
                         value: "{resource()}",
                         oninput: move |e| resource.set(e.value()),
                     }
                     select {
-                        class: "form-control", style: "width:auto;",
+                        class: "form-control",
+                        style: "width:auto;",
                         value: "{severity()}",
                         onchange: move |e| severity.set(e.value()),
                         option { value: "all", "All severities" }
@@ -151,7 +199,8 @@ pub fn AuditPage() -> Element {
                         option { value: "critical", "Critical" }
                     }
                     select {
-                        class: "form-control", style: "width:auto;",
+                        class: "form-control",
+                        style: "width:auto;",
                         value: "{success()}",
                         onchange: move |e| success.set(e.value()),
                         option { value: "all", "Success/Fail" }
@@ -159,22 +208,28 @@ pub fn AuditPage() -> Element {
                         option { value: "false", "Failure" }
                     }
                     input {
-                        class: "form-control", style: "width:auto;",
+                        class: "form-control",
+                        style: "width:auto;",
                         r#type: "date",
                         value: "{since()}",
                         oninput: move |e| since.set(e.value()),
                         title: "Since",
                     }
                     input {
-                        class: "form-control", style: "width:auto;",
+                        class: "form-control",
+                        style: "width:auto;",
                         r#type: "date",
                         value: "{until()}",
                         oninput: move |e| until.set(e.value()),
                         title: "Until",
                     }
                     button {
-                        class: "btn btn-primary", r#type: "button",
-                        onclick: move |_| { page.set(0); load.call(()); },
+                        class: "btn btn-primary",
+                        r#type: "button",
+                        onclick: move |_| {
+                            page.set(0);
+                            load.call(());
+                        },
                         "Apply"
                     }
                 }
@@ -210,17 +265,23 @@ pub fn AuditPage() -> Element {
                             for e in d.entries {
                                 tr { key: "{e.id}",
                                     td { class: "mono", "{format_datetime(&e.created_at)}" }
-                                    td { code { "{e.action}" } }
+                                    td {
+                                        code { "{e.action}" }
+                                    }
                                     td {
                                         span { "{e.resource_type}" }
                                         if let Some(rid) = &e.resource_id {
-                                            div { class: "mono text-muted", style: "font-size:11px;",
+                                            div {
+                                                class: "mono text-muted",
+                                                style: "font-size:11px;",
                                                 "{rid}"
                                             }
                                         }
                                     }
                                     td {
-                                        span { class: "{severity_badge_class(&e.severity)}", "{e.severity}" }
+                                        span { class: "{severity_badge_class(&e.severity)}",
+                                            "{e.severity}"
+                                        }
                                     }
                                     td {
                                         if e.success {
@@ -232,9 +293,7 @@ pub fn AuditPage() -> Element {
                                     td { class: "mono",
                                         "{e.actor_user_id.as_deref().unwrap_or(\"—\")}"
                                     }
-                                    td { class: "mono",
-                                        "{e.ip_address.as_deref().unwrap_or(\"—\")}"
-                                    }
+                                    td { class: "mono", "{e.ip_address.as_deref().unwrap_or(\"—\")}" }
                                 }
                             }
                         }
@@ -242,9 +301,12 @@ pub fn AuditPage() -> Element {
                 }
                 Pagination {
                     page: page(),
-                    page_size: page_size,
+                    page_size,
                     total: d.total as usize,
-                    on_page: move |p| { page.set(p); load.call(()); },
+                    on_page: move |p| {
+                        page.set(p);
+                        load.call(());
+                    },
                 }
             }
         }
@@ -258,45 +320,4 @@ fn urlencoding_lite(s: &str) -> String {
             _ => format!("%{:02X}", c as u8),
         })
         .collect()
-}
-
-fn export_audit_csv(entries: &[crate::models::AuditEntry]) {
-    let mut csv = String::from("id,created_at,action,resource_type,resource_id,severity,success,actor_user_id,target_user_id,ip_address,user_agent,metadata_json\n");
-    for e in entries {
-        let esc = |s: &str| format!("\"{}\"", s.replace('"', "\"\""));
-        let line = format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{}\n",
-            esc(&e.id),
-            esc(&e.created_at),
-            esc(&e.action),
-            esc(&e.resource_type),
-            esc(e.resource_id.as_deref().unwrap_or("")),
-            esc(&e.severity),
-            e.success,
-            esc(e.actor_user_id.as_deref().unwrap_or("")),
-            esc(e.target_user_id.as_deref().unwrap_or("")),
-            esc(e.ip_address.as_deref().unwrap_or("")),
-            esc(e.user_agent.as_deref().unwrap_or("")),
-            esc(e.metadata_json.as_deref().unwrap_or("")),
-        );
-        csv.push_str(&line);
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        use wasm_bindgen::JsCast;
-        if let Some(window) = web_sys::window() {
-            if let Some(document) = window.document() {
-                let encoded = urlencoding_lite(&csv);
-                let data_url = format!("data:text/csv;charset=utf-8,{}", encoded);
-                if let Ok(element) = document.create_element("a") {
-                    let _ = element.set_attribute("href", &data_url);
-                    let _ = element.set_attribute("download", "audit_export.csv");
-                    if let Ok(html_elem) = element.dyn_into::<web_sys::HtmlElement>() {
-                        html_elem.click();
-                    }
-                }
-            }
-        }
-    }
 }

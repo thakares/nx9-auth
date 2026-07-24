@@ -7,7 +7,7 @@ use crate::pages::{
     audit::AuditPage,
     auth::{ForbiddenPage, LoginPage, UnauthorizedPage},
     dashboard::DashboardPage,
-    groups::{GroupsPage, GroupDetailPage},
+    groups::{GroupDetailPage, GroupsPage},
     not_found::NotFoundPage,
     permissions::PermissionsPage,
     profile::ProfilePage,
@@ -15,7 +15,7 @@ use crate::pages::{
     service_accounts::ServiceAccountsPage,
     sessions::SessionsPage,
     settings::SettingsPage,
-    tenants::{TenantsPage, TenantDetailPage},
+    tenants::{TenantDetailPage, TenantsPage},
     tokens::TokensPage,
     users::{UserDetailPage, UsersPage},
 };

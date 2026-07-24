@@ -252,7 +252,10 @@ pub async fn list_tenants() -> Result<Vec<TenantView>, ApiError> {
     Ok(r.tenants)
 }
 
-pub async fn update_profile(email: Option<&str>, full_name: Option<&str>) -> Result<Value, ApiError> {
+pub async fn update_profile(
+    email: Option<&str>,
+    full_name: Option<&str>,
+) -> Result<Value, ApiError> {
     let body = serde_json::json!({ "email": email, "full_name": full_name });
     patch_json("/profile", &body).await
 }
@@ -425,8 +428,11 @@ pub async fn update_application(
 }
 
 pub async fn rotate_application_secret(id: &str) -> Result<String, ApiError> {
-    let r: RotateSecretResponse =
-        post_json(&format!("/applications/{id}/secret"), &serde_json::json!({})).await?;
+    let r: RotateSecretResponse = post_json(
+        &format!("/applications/{id}/secret"),
+        &serde_json::json!({}),
+    )
+    .await?;
     Ok(r.client_secret)
 }
 
@@ -441,7 +447,9 @@ pub async fn get_application(id: &str) -> Result<ApplicationView, ApiError> {
         .map_err(|e| ApiError::Other(e.to_string()))
 }
 
-pub async fn list_application_members(app_id: &str) -> Result<Vec<ApplicationMemberView>, ApiError> {
+pub async fn list_application_members(
+    app_id: &str,
+) -> Result<Vec<ApplicationMemberView>, ApiError> {
     let r: ApplicationMembersResponse = get(&format!("/applications/{app_id}/members")).await?;
     Ok(r.members)
 }
@@ -516,8 +524,11 @@ pub async fn delete_service_account(id: &str) -> Result<(), ApiError> {
 }
 
 pub async fn rotate_service_account_secret(id: &str) -> Result<String, ApiError> {
-    let r: Value =
-        post_json(&format!("/service-accounts/{id}/secret"), &serde_json::json!({})).await?;
+    let r: Value = post_json(
+        &format!("/service-accounts/{id}/secret"),
+        &serde_json::json!({}),
+    )
+    .await?;
     Ok(r.get("raw_secret")
         .and_then(|v| v.as_str())
         .unwrap_or("")
@@ -569,7 +580,11 @@ pub async fn get_group(id: &str) -> Result<GroupDetailResponse, ApiError> {
     get(&format!("/groups/{id}")).await
 }
 
-pub async fn update_group(id: &str, name: &str, description: Option<&str>) -> Result<GroupView, ApiError> {
+pub async fn update_group(
+    id: &str,
+    name: &str,
+    description: Option<&str>,
+) -> Result<GroupView, ApiError> {
     let body = serde_json::json!({ "name": name, "description": description });
     let r: Value = patch_json(&format!("/groups/{id}"), &body).await?;
     serde_json::from_value(r.get("group").cloned().unwrap_or(Value::Null))
@@ -601,7 +616,11 @@ pub async fn create_tenant(name: &str, slug: Option<&str>) -> Result<TenantView,
         .map_err(|e| ApiError::Other(e.to_string()))
 }
 
-pub async fn update_tenant(id: &str, name: &str, slug: Option<&str>) -> Result<TenantView, ApiError> {
+pub async fn update_tenant(
+    id: &str,
+    name: &str,
+    slug: Option<&str>,
+) -> Result<TenantView, ApiError> {
     let body = serde_json::json!({ "name": name, "slug": slug });
     let r: Value = patch_json(&format!("/tenants/{id}"), &body).await?;
     serde_json::from_value(r.get("tenant").cloned().unwrap_or(Value::Null))
@@ -639,6 +658,10 @@ pub async fn remove_tenant_user(tenant_id: &str, user_id: &str) -> Result<(), Ap
 
 pub async fn list_tenant_applications(tenant_id: &str) -> Result<Vec<ApplicationView>, ApiError> {
     let r: Value = get(&format!("/tenants/{tenant_id}/applications")).await?;
-    serde_json::from_value(r.get("applications").cloned().unwrap_or(Value::Array(vec![])))
-        .map_err(|e| ApiError::Other(e.to_string()))
+    serde_json::from_value(
+        r.get("applications")
+            .cloned()
+            .unwrap_or(Value::Array(vec![])),
+    )
+    .map_err(|e| ApiError::Other(e.to_string()))
 }

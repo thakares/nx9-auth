@@ -33,5 +33,3 @@ pub fn clear() {
     SessionStorage::delete(ACCESS_KEY);
     SessionStorage::delete(REFRESH_KEY);
 }
-
-

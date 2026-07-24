@@ -71,8 +71,7 @@ pub fn Modal(
     title: String,
     open: bool,
     on_close: EventHandler<()>,
-    #[props(default)]
-    large: bool,
+    #[props(default)] large: bool,
     children: Element,
 ) -> Element {
     if !open {
@@ -112,10 +111,8 @@ pub fn ConfirmDialog(
     title: String,
     message: String,
     open: bool,
-    #[props(default = "Confirm".to_string())]
-    confirm_label: String,
-    #[props(default)]
-    danger: bool,
+    #[props(default = "Confirm".to_string())] confirm_label: String,
+    #[props(default)] danger: bool,
     on_confirm: EventHandler<()>,
     on_cancel: EventHandler<()>,
 ) -> Element {

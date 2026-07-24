@@ -1,9 +1,9 @@
 //! Global application state via Dioxus signals / context.
 
-use crate::models::MeResponse;
-use crate::theme::{self, ThemeMode};
-use crate::routes::Route;
 use crate::components::navigation::registry::{NavigationItem, NavigationRegistry};
+use crate::models::MeResponse;
+use crate::routes::Route;
+use crate::theme::{self, ThemeMode};
 use dioxus::prelude::*;
 
 /// Toast notification.
@@ -134,7 +134,7 @@ impl AppState {
                     permission: None,
                     children: vec![],
                 },
-            ]
+            ],
         );
         registry.register_section(
             "Security",
@@ -179,7 +179,7 @@ impl AppState {
                     permission: Some("roles:manage".into()),
                     children: vec![],
                 },
-            ]
+            ],
         );
         registry.register_section(
             "Audit & Logs",
@@ -200,7 +200,7 @@ impl AppState {
                     permission: Some("audit:view".into()),
                     children: vec![],
                 },
-            ]
+            ],
         );
         registry.register_section(
             "System",
@@ -221,7 +221,7 @@ impl AppState {
                     permission: None,
                     children: vec![],
                 },
-            ]
+            ],
         );
 
         let state = Self {
@@ -276,4 +276,3 @@ impl AppState {
         self.set_theme(next);
     }
 }
-

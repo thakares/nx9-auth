@@ -98,17 +98,6 @@ impl UsersRepository for PostgresUsersRepository {
         Ok(())
     }
 
-    async fn update_user_tenant(&self, id: &str, tenant_id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "UPDATE users SET tenant_id = $1, updated_at = to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') WHERE id = $2",
-        )
-        .bind(tenant_id)
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     async fn reassign_user_tenant_with_audit(
         &self,
         user_id: &str,

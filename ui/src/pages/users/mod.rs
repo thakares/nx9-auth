@@ -3,7 +3,7 @@
 use crate::components::feedback::{ConfirmDialog, EmptyState, ErrorState, LoadingSpinner, Modal};
 use crate::components::forms::{PasswordInput, TextInput};
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::components::widgets::StatusChip;
 use crate::models::UserView;
 use crate::routes::Route;
@@ -47,9 +47,12 @@ pub fn UsersPage() -> Element {
         });
     });
 
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
-    let can_create = state.auth.read().has_permission("users:create") || state.auth.read().is_adminish();
+    let can_create =
+        state.auth.read().has_permission("users:create") || state.auth.read().is_adminish();
     use_effect(move || {
         if can_create && crate::utils::check_and_clear_create_intent() {
             show_create.set(true);
@@ -318,8 +321,7 @@ pub fn UserDetailPage(id: String) -> Element {
     let mut user = use_signal(|| Option::<UserView>::None);
     let mut roles = use_signal(Vec::<crate::models::RoleView>::new);
     let mut all_roles = use_signal(Vec::<crate::models::RoleView>::new);
-    let mut user_apps =
-        use_signal(Vec::<crate::models::UserApplicationMembershipView>::new);
+    let mut user_apps = use_signal(Vec::<crate::models::UserApplicationMembershipView>::new);
     let mut error = use_signal(|| Option::<String>::None);
     let mut loading = use_signal(|| true);
     let mut new_pass = use_signal(String::new);
@@ -352,7 +354,9 @@ pub fn UserDetailPage(id: String) -> Element {
             }
         });
     });
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     rsx! {
         Breadcrumb { items: vec![

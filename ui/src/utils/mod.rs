@@ -2,7 +2,10 @@
 
 /// Initials from a username (up to 2 chars).
 pub fn initials(name: &str) -> String {
-    let parts: Vec<&str> = name.split(|c: char| !c.is_alphanumeric()).filter(|s| !s.is_empty()).collect();
+    let parts: Vec<&str> = name
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|s| !s.is_empty())
+        .collect();
     if parts.is_empty() {
         return "?".to_string();
     }
@@ -109,7 +112,11 @@ pub fn check_and_clear_create_intent() -> bool {
                         };
                         let new_url = format!("{pathname}{new_search}");
                         let _ = window.history().and_then(|h| {
-                            h.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some(&new_url))
+                            h.replace_state_with_url(
+                                &wasm_bindgen::JsValue::NULL,
+                                "",
+                                Some(&new_url),
+                            )
                         });
                     }
                     return true;

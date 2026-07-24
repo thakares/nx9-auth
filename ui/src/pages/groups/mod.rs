@@ -1,7 +1,7 @@
 use crate::components::feedback::{ConfirmDialog, EmptyState, ErrorState, LoadingSpinner, Modal};
 use crate::components::forms::TextInput;
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::models::{GroupView, UserView};
 use crate::routes::Route;
 use crate::services::api;
@@ -30,27 +30,45 @@ pub fn GroupsPage() -> Element {
         error.set(None);
         spawn(async move {
             match api::list_groups().await {
-                Ok(list) => { groups.set(list); loading.set(false); }
-                Err(e) => { error.set(Some(e.to_string())); loading.set(false); }
+                Ok(list) => {
+                    groups.set(list);
+                    loading.set(false);
+                }
+                Err(e) => {
+                    error.set(Some(e.to_string()));
+                    loading.set(false);
+                }
             }
         });
     });
 
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     let mut filtered: Vec<GroupView> = groups()
         .into_iter()
-        .filter(|g| matches_query(&g.name, &query()) || g.description.as_deref().map(|d| matches_query(d, &query())).unwrap_or(false))
+        .filter(|g| {
+            matches_query(&g.name, &query())
+                || g.description
+                    .as_deref()
+                    .map(|d| matches_query(d, &query()))
+                    .unwrap_or(false)
+        })
         .collect();
-    
+
     let sk = sort_key();
     filtered.sort_by(|a, b| match sk.as_str() {
         "members" => b.member_count.cmp(&a.member_count),
         _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
-    
+
     let total = filtered.len();
-    let page_items: Vec<GroupView> = filtered.into_iter().skip(page() * page_size).take(page_size).collect();
+    let page_items: Vec<GroupView> = filtered
+        .into_iter()
+        .skip(page() * page_size)
+        .take(page_size)
+        .collect();
 
     rsx! {
         Breadcrumb { items: vec![
@@ -207,7 +225,7 @@ pub fn GroupDetailPage(id: String) -> Element {
     let mut all_users = use_signal(Vec::<UserView>::new);
     let mut error = use_signal(|| Option::<String>::None);
     let mut loading = use_signal(|| true);
-    
+
     let mut add_user_id = use_signal(String::new);
 
     let mut edit_mode = use_signal(|| false);
@@ -237,7 +255,9 @@ pub fn GroupDetailPage(id: String) -> Element {
         });
     });
 
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     rsx! {
         Breadcrumb { items: vec![

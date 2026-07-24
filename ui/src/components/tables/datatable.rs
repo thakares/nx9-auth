@@ -14,10 +14,10 @@ pub fn DataTable(
     on_search: EventHandler<String>,
     search_value: String,
     search_placeholder: String,
-    
+
     on_sort: EventHandler<String>,
     sort_key: String,
-    
+
     on_page: EventHandler<usize>,
     page: usize,
     page_size: usize,
@@ -25,7 +25,7 @@ pub fn DataTable(
 
     // Row Actions or other toolbar slots
     #[props(default)] toolbar_actions: Option<Element>,
-    
+
     // The actual table body and header will be rendered internally
     // We expect the caller to just give us the table rows
     children: Element,
@@ -40,11 +40,11 @@ pub fn DataTable(
                     oninput: move |v| on_search.call(v),
                     placeholder: "{search_placeholder}",
                 }
-                
+
                 div { class: "spacer" }
-                
+
                 {toolbar_actions}
-                
+
                 // Column Visibility
                 div { class: "dropdown",
                     button {
@@ -68,7 +68,7 @@ pub fn DataTable(
                     }
                 }
             }
-            
+
             div { class: "table-wrap",
                 table { class: "data-table",
                     thead {
@@ -98,7 +98,7 @@ pub fn DataTable(
                     }
                 }
             }
-            
+
             crate::components::tables::Pagination {
                 page: page,
                 page_size: page_size,

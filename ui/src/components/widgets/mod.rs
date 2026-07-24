@@ -65,11 +65,7 @@ pub fn Card(
 }
 
 #[component]
-pub fn StatCard(
-    label: String,
-    value: String,
-    #[props(default)] hint: String,
-) -> Element {
+pub fn StatCard(label: String, value: String, #[props(default)] hint: String) -> Element {
     rsx! {
         div { class: "stat-card",
             div { class: "label", "{label}" }

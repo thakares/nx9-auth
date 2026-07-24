@@ -472,14 +472,9 @@ pub fn ApplicationDetailPage(id: String) -> Element {
         }
         let id = app_id_activity.clone();
         spawn(async move {
-            let q = format!("resource_type=application&q={id}&limit=50");
+            let q = format!("resource_type=application&resource_id={id}&limit=50");
             if let Ok(resp) = api::list_audit(&q).await {
-                let filtered: Vec<_> = resp
-                    .entries
-                    .into_iter()
-                    .filter(|e| e.resource_id.as_deref() == Some(id.as_str()))
-                    .collect();
-                activity.set(filtered);
+                activity.set(resp.entries);
             }
         });
     });

@@ -1,7 +1,7 @@
 use crate::components::feedback::{ConfirmDialog, EmptyState, ErrorState, LoadingSpinner, Modal};
 use crate::components::forms::TextInput;
 use crate::components::navigation::Breadcrumb;
-use crate::components::tables::{DataTable, ColumnDef};
+use crate::components::tables::{ColumnDef, DataTable};
 use crate::models::{ApplicationView, AuditEntry, TenantView, UserView};
 use crate::routes::Route;
 use crate::services::api;
@@ -30,15 +30,24 @@ pub fn TenantsPage() -> Element {
         error.set(None);
         spawn(async move {
             match api::list_tenants().await {
-                Ok(list) => { tenants.set(list); loading.set(false); }
-                Err(e) => { error.set(Some(e.to_string())); loading.set(false); }
+                Ok(list) => {
+                    tenants.set(list);
+                    loading.set(false);
+                }
+                Err(e) => {
+                    error.set(Some(e.to_string()));
+                    loading.set(false);
+                }
             }
         });
     });
 
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
-    let can_create = state.auth.read().has_permission("roles:manage") || state.auth.read().is_adminish();
+    let can_create =
+        state.auth.read().has_permission("roles:manage") || state.auth.read().is_adminish();
     use_effect(move || {
         if can_create && crate::utils::check_and_clear_create_intent() {
             show_create.set(true);
@@ -59,7 +68,11 @@ pub fn TenantsPage() -> Element {
         list
     };
     let total = filtered.len();
-    let page_items: Vec<TenantView> = filtered.into_iter().skip(page() * page_size).take(page_size).collect();
+    let page_items: Vec<TenantView> = filtered
+        .into_iter()
+        .skip(page() * page_size)
+        .take(page_size)
+        .collect();
 
     rsx! {
         Breadcrumb { items: vec![
@@ -290,7 +303,7 @@ pub fn TenantDetailPage(id: String) -> Element {
     let load_activity = use_callback(move |_: ()| {
         let id = tenant_id_act.clone();
         spawn(async move {
-            let q = format!("resource_type=tenant&q={id}&limit=50");
+            let q = format!("resource_type=tenant&resource_id={id}&limit=50");
             if let Ok(resp) = api::list_audit(&q).await {
                 activity.set(resp.entries);
             }

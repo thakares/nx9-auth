@@ -40,7 +40,9 @@ pub fn ProfilePage() -> Element {
             }
         });
     });
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     rsx! {
         Breadcrumb { items: vec![

@@ -21,7 +21,6 @@ pub trait UsersRepository: Send + Sync {
         password_hash: &str,
     ) -> Result<User, sqlx::Error>;
     async fn update_status(&self, id: &str, status: i32) -> Result<(), sqlx::Error>;
-    async fn update_user_tenant(&self, id: &str, tenant_id: &str) -> Result<(), sqlx::Error>;
     async fn reassign_user_tenant_with_audit(
         &self,
         user_id: &str,

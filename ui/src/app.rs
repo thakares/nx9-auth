@@ -15,7 +15,7 @@ pub fn App() -> Element {
         if !matches!(auth(), BootstrapState::Initializing) {
             return;
         }
-        
+
         match api::me().await {
             Ok(Some(me)) => {
                 auth.set(BootstrapState::Authenticated(me));

@@ -129,7 +129,9 @@ pub fn LoginPage() -> Element {
                     nav.replace(Route::DashboardPage {});
                 }
                 Err(e) => {
-                    let _ = web_sys::console::warn_1(&format!("[nx9-auth-ui] Login failed: {e:?}").into());
+                    let _ = web_sys::console::warn_1(
+                        &format!("[nx9-auth-ui] Login failed: {e:?}").into(),
+                    );
                     // Map API errors to a safe, non-enumerating message for creds.
                     let msg = match e {
                         api::ApiError::Unauthorized

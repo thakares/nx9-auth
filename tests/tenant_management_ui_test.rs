@@ -57,7 +57,7 @@ async fn test_tenant_user_listing_and_assignment() {
     // Reassign user to Acme Org
     provider
         .users()
-        .update_user_tenant(&user.id, &tenant_id)
+        .reassign_user_tenant_with_audit(&user.id, &tenant_id, None, None, None)
         .await
         .expect("Tenant assignment should succeed");
 
@@ -251,7 +251,7 @@ async fn test_session_identity_immediately_reflects_tenant_reassignment() {
     // 4. Reassign user to Tenant B
     provider
         .users()
-        .update_user_tenant(&user.id, &tenant_b)
+        .reassign_user_tenant_with_audit(&user.id, &tenant_b, None, None, None)
         .await
         .unwrap();
 

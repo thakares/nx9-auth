@@ -22,10 +22,14 @@ pub fn Header() -> Element {
     let auth_state = state.auth.read();
     let can_create_user = auth_state.has_permission("users:create") || auth_state.is_adminish();
     let can_create_tenant = auth_state.has_permission("roles:manage") || auth_state.is_adminish();
-    let can_create_app = auth_state.has_permission("applications:manage") || auth_state.is_adminish();
+    let can_create_app =
+        auth_state.has_permission("applications:manage") || auth_state.is_adminish();
     let can_create_role = auth_state.has_permission("roles:manage") || auth_state.is_adminish();
-    let can_create_sa = auth_state.has_permission("service_accounts:manage") || auth_state.has_permission("roles:manage") || auth_state.is_adminish();
-    let has_any_create = can_create_user || can_create_tenant || can_create_app || can_create_role || can_create_sa;
+    let can_create_sa = auth_state.has_permission("service_accounts:manage")
+        || auth_state.has_permission("roles:manage")
+        || auth_state.is_adminish();
+    let has_any_create =
+        can_create_user || can_create_tenant || can_create_app || can_create_role || can_create_sa;
     drop(auth_state);
 
     rsx! {
@@ -201,8 +205,6 @@ pub fn Header() -> Element {
     }
 }
 
-
-
 #[component]
 pub fn Sidebar() -> Element {
     let state = use_context::<AppState>();
@@ -218,8 +220,7 @@ pub fn Sidebar() -> Element {
     };
 
     let active = |r: &Route| -> bool {
-        format!("{path:?}").split_whitespace().next()
-            == format!("{r:?}").split_whitespace().next()
+        format!("{path:?}").split_whitespace().next() == format!("{r:?}").split_whitespace().next()
     };
 
     rsx! {

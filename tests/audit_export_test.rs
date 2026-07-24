@@ -224,3 +224,55 @@ fn test_rfc4180_csv_escaping_rules() {
     assert_eq!(esc("with \"quotes\""), "\"with \"\"quotes\"\"\"");
     assert_eq!(esc("multi\nline"), "\"multi\nline\"");
 }
+
+#[tokio::test]
+async fn test_exact_resource_id_filter_excludes_generic_text_matches() {
+    let (provider, db_path) = setup_test_provider().await;
+    let tenant_id = "tenant-exact";
+
+    provider
+        .audit()
+        .insert(
+            &uuid::Uuid::new_v4().to_string(),
+            None,
+            None,
+            "tenant.updated",
+            "tenant",
+            Some(tenant_id),
+            "info",
+            None,
+            None,
+            Some("{}"),
+        )
+        .await
+        .unwrap();
+    provider
+        .audit()
+        .insert(
+            &uuid::Uuid::new_v4().to_string(),
+            None,
+            None,
+            "tenant.updated",
+            "tenant",
+            Some("other-tenant"),
+            "info",
+            None,
+            None,
+            Some(&format!("{{\"mentioned\":\"{tenant_id}\"}}")),
+        )
+        .await
+        .unwrap();
+
+    let filter = nx9_auth::db::models::AuditFilter {
+        resource_type: Some("tenant".into()),
+        resource_id: Some(tenant_id.into()),
+        limit: 50,
+        ..Default::default()
+    };
+    assert_eq!(provider.audit().count_filtered(&filter).await.unwrap(), 1);
+    let entries = provider.audit().list_filtered(&filter).await.unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].resource_id.as_deref(), Some(tenant_id));
+
+    teardown_test_db(db_path).await;
+}

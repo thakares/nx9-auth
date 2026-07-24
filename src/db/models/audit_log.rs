@@ -44,6 +44,7 @@ pub struct AuditFilter {
     pub actor_user_id: Option<String>,
     pub action: Option<String>,
     pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
     pub severity: Option<String>,
     pub since: Option<String>,
     pub until: Option<String>,

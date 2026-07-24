@@ -41,7 +41,9 @@ pub fn TokensPage() -> Element {
             }
         });
     });
-    use_effect(move || { reload.call(()); });
+    use_effect(move || {
+        reload.call(());
+    });
 
     let filtered: Vec<TokenView> = tokens()
         .into_iter()
